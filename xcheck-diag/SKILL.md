@@ -11,8 +11,8 @@ argument-hint: <技术问题>
 
 执行:
 
-1. 读 `~/.claude/skills/xcheck/lib/flow.md`,**严格按其中的 5 步执行**(检测 → 多选 → 并行派 subagent → 收齐落盘 → 主会话汇总)。本次 mode = diag。
-2. 诊断用的外部 prompt 模板:`~/.claude/skills/xcheck/prompts/diag.md`(填 `{{USER_INPUT}}` = `$ARGUMENTS`,`{{CONTEXT}}` = 用户额外给的上下文或删掉)。
+1. 读 `~/.claude/skills/xcheck/lib/flow.md`,**严格按其中的「第 0 步(可选摄入)+ 5 步」执行**(摄入 → 检测 → 多选 → 并行派 subagent → 收齐落盘 → 主会话汇总)。本次 mode = diag。
+2. 诊断用的外部 prompt 模板:`~/.claude/skills/xcheck/prompts/diag.md`(填 `{{USER_INPUT}}` = `$ARGUMENTS`,或第 0 步摄入确认后的事实清单;`{{CONTEXT}}` = 用户额外给的上下文或删掉)。
 3. 主会话汇总模板:`~/.claude/skills/xcheck/prompts/synthesize-diag.md`。
 4. 每个 subagent 的指令 = `~/.claude/skills/xcheck/lib/subagent-carrier.md`(填好该 agent 的 AGENT_NAME / CLI_CMD / INPUT_MODE / PROMPT_FILE / TIMEOUT / RESULT_SHAPE=diag 结构)。
 

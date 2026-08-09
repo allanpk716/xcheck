@@ -11,6 +11,7 @@
 
 xcheck is a set of global [Claude Code](https://code.claude.com/) skills. You hand it a bug / error / "why doesn't this work", or a design / proposal / code change, and it:
 
+0. **(Only if your input isn't self-contained)** pulls the **objective facts** out of your recent chat — keeps what you said / pasted, drops its own reasoning, never rewrites — and has you confirm them. The fan-out agents are fresh processes that can't see the conversation, so this is how they get context. A full stack trace or design doc skips this.
 1. **Detects** which local AI-agent CLIs you have installed (`claude`, `codex`, `opencode`, `pi`, …) and lets you pick a few.
 2. **Fans them out in parallel**, each in its own isolated Claude subagent, so every agent reasons independently and can't see the others — **blind evaluation**.
 3. **Collects only** — subagents are forbidden from judging or merging opinions; they faithfully condense each agent's raw output.
@@ -33,7 +34,13 @@ All four are **manual slash commands** (`disable-model-invocation: true`) — th
 ## How it works
 
 ```
-you: /xcheck-diag "my login state via localStorage gets wiped on refresh"
+you: /xcheck-diag "diagnose that thing from just now"   ← short / reference-like
+        │
+  [0] intake   ── ONLY if input isn't self-contained: slice recent dialog →
+        │         extractor subagent (haiku) pulls OBJECTIVE facts (keeps what
+        │         you said/pasted, drops assistant reasoning, never rewrites) →
+        │         you confirm per item → the fact list becomes the real input.
+        │         (A full stack trace / design doc skips this → straight to [1].)
         │
   [1] detect   ── lib/detect.sh (`which`) reads agents.toml → list installed agents
         │
@@ -113,6 +120,7 @@ xcheck-setup/SKILL.md        # detect / verify / register
 
 `xcheck` 是一组全局 [Claude Code](https://code.claude.com/) skill。你给它一个 bug / 报错 / "为什么这个不工作"，或一个方案 / 设计 / 代码改动，它会：
 
+0. **（仅当输入不自包含时）摄入**——从最近对话里**摘客观事实**（留你说过 / 贴过的，丢它自己的推理，绝不改写原话），逐条经你确认后再往下传。下游 agent 是全新进程、看不到聊天记录，靠这步拿到背景。完整报错栈 / 设计文档这类自包含输入直接跳过。
 1. **检测**你本机装了哪些 AI agent CLI（`claude`、`codex`、`opencode`、`pi`……）让你多选几个。
 2. **并行派发**，每个 agent 包在独立的 Claude subagent 里独立推理，彼此看不见——**盲评**。
 3. **只搬运**——subagent 不许评判、不许合并观点，只忠实精简各家的原始输出。

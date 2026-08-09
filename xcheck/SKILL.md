@@ -7,7 +7,7 @@ argument-hint: <问题描述或方案>
 
 # /xcheck — 自动路由
 
-`$ARGUMENTS` 是用户给的一段(可能模糊的)描述。你**先判断**它更像"技术问题"还是"方案评审",再交给 `~/.claude/skills/xcheck/lib/flow.md` 走对应的 mode。**你不重新实现 flow.md 的 5 步,只做分类 + 转派。**
+`$ARGUMENTS` 是用户给的一段(可能模糊的)描述。你**先判断**它更像"技术问题"还是"方案评审",再交给 `~/.claude/skills/xcheck/lib/flow.md` 走对应的 mode。**你不重新实现 flow.md 的「第 0 步摄入 + 5 步」,只做分类 + 转派。**
 
 ---
 
@@ -49,10 +49,10 @@ argument-hint: <问题描述或方案>
 
 分类清楚后,**直接交给共享流程**,你别自己造编排:
 
-- **mode=diag** → 按 `~/.claude/skills/xcheck/lib/flow.md` 的 5 步执行,本次 mode = diag;外部 prompt 用 `~/.claude/skills/xcheck/prompts/diag.md`(填 `{{USER_INPUT}}` = `$ARGUMENTS`),汇总模板用 `~/.claude/skills/xcheck/prompts/synthesize-diag.md`。
-- **mode=review** → 按 `~/.claude/skills/xcheck/lib/flow.md` 的 5 步执行,本次 mode = review;外部 prompt 用 `~/.claude/skills/xcheck/prompts/review.md`(若 `$ARGUMENTS` 是文件路径先 Read 出全文),汇总模板用 `~/.claude/skills/xcheck/prompts/synthesize-review.md`。
+- **mode=diag** → 按 `~/.claude/skills/xcheck/lib/flow.md` 的「第 0 步摄入(可选)+ 5 步」执行,本次 mode = diag;外部 prompt 用 `~/.claude/skills/xcheck/prompts/diag.md`(填 `{{USER_INPUT}}` = `$ARGUMENTS`,或第 0 步摄入确认后的事实清单),汇总模板用 `~/.claude/skills/xcheck/prompts/synthesize-diag.md`。
+- **mode=review** → 按 `~/.claude/skills/xcheck/lib/flow.md` 的「第 0 步摄入(可选)+ 5 步」执行,本次 mode = review;外部 prompt 用 `~/.claude/skills/xcheck/prompts/review.md`(若 `$ARGUMENTS` 是文件路径先 Read 出全文;或第 0 步摄入确认后的事实清单),汇总模板用 `~/.claude/skills/xcheck/prompts/synthesize-review.md`。
 
-也就是说,除了"第 0 步分类",后面整套(检测 → 多选 → 并行派 subagent → 收齐落盘 → 主会话汇总)都是 flow.md 的逻辑,你只是带着确定的 mode 进去执行。
+也就是说,除了你自己的「第 0 步分类」,后面整套都是 flow.md 的逻辑 —— flow.md 会先跑**它自己的第 0 步(摄入,可选)**,再走检测 → 多选 → 并行派 subagent → 收齐落盘 → 主会话汇总。你只是带着确定的 mode 进去执行;若用户输入是"诊断刚才那个"这种指代性输入,flow.md 第 0 步会自动摘对话背景(见 `lib/context-intake.md`)。
 
 ---
 

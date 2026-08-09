@@ -5,6 +5,13 @@ All notable changes to `xcheck`. Format loosely follows [Keep a Changelog](https
 
 ## [Unreleased] / 未发布
 
+## [0.3.0] - 2026-08-09
+
+### Added / 新增
+
+- **Context intake (optional Step 0).** When you trigger a command with a short / reference-like input (e.g. `诊断刚才那个` / "diagnose that thing from just now"), xcheck now auto-extracts the **objective facts** from your recent conversation and passes them to the fan-out agents — because those agents are fresh processes that can't see the chat. A dedicated **extractor subagent** (cheap model) pulls facts **by provenance** (keeps what you said / pasted; drops assistant reasoning), never rewrites your words, and you confirm the fact list per-item before anything runs. Self-contained inputs (a full stack trace, a design doc) skip this. See `xcheck/lib/context-intake.md` + `xcheck/lib/extractor-carrier.md`.
+- **上下文摄入（可选第 0 步）。** 当你用简短 / 指代性输入（如 `诊断刚才那个`）触发命令时，xcheck 会自动从最近对话里**摘取客观事实**传给下游 agent —— 因为那些 agent 是全新进程、看不到聊天记录。由专门的**摘录 subagent**（便宜模型）**按来源**摘取（留你说的 / 贴过的，丢 assistant 推理），绝不改写原话，且逐条经你确认后才开跑。自包含输入（完整报错栈、设计文档）直接跳过。见 `xcheck/lib/context-intake.md` + `xcheck/lib/extractor-carrier.md`。
+
 ## [0.2.0] - 2026-08-09
 
 ### Added / 新增

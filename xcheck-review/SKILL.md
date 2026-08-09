@@ -9,8 +9,8 @@ argument-hint: <方案 文本或文件路径>
 
 `$ARGUMENTS` 是用户要评审的方案(文本,或文件路径)。执行:
 
-1. 读 `~/.claude/skills/xcheck/lib/flow.md`,**严格按其中 5 步执行**,本次 **mode = review**。
-2. 若 `$ARGUMENTS` 是文件路径,先用 Read 读出全文作为方案内容。
+1. 读 `~/.claude/skills/xcheck/lib/flow.md`,**严格按其中的「第 0 步(可选摄入)+ 5 步」执行**,本次 **mode = review**。
+2. 若 `$ARGUMENTS` 是文件路径,先用 Read 读出全文作为方案内容;若第 0 步摄入运行了,则用确认后的事实清单作为 `{{PROPOSAL}}` 内容(见 `lib/context-intake.md`)。
 3. 评审外部 prompt:`~/.claude/skills/xcheck/prompts/review.md`。
 4. 主会话汇总:`~/.claude/skills/xcheck/prompts/synthesize-review.md`。
 

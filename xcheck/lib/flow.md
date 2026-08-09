@@ -1,6 +1,16 @@
 # xcheck 共享执行流程(mode = diag | review)
 
-主会话(你)按这 5 步执行。`$ARGUMENTS` 是用户输入的内容。mode 由调用你的入口 skill 指定(diag / review)。**这一份流程是 /xcheck-diag、/xcheck-review、/xcheck 共用的编排大脑 —— 严格按步骤走,不跳步。**
+主会话(你)按**第 0 步(可选摄入)+ 5 步**执行。`$ARGUMENTS` 是用户输入的内容。mode 由调用你的入口 skill 指定(diag / review)。**这一份流程是 /xcheck-diag、/xcheck-review、/xcheck 共用的编排大脑 —— 严格按步骤走,不跳步。**
+
+---
+
+## 第 0 步:上下文摄入(可选)
+
+当 `$ARGUMENTS` 是指代性 / 简短输入(如"诊断刚才那个")、**不自包含**时,先按 `~/.claude/skills/xcheck/lib/context-intake.md` 执行摄入:切最近对话 → 派摘录 subagent(haiku)摘客观事实 → 用户逐条确认 → 用确认后的事实清单作为 `{{USER_INPUT}}`(diag)/ `{{PROPOSAL}}`(review)。
+
+- **自包含输入**(完整报错栈 / 设计文档 / 文件路径)→ **跳过**摄入,直接用 `$ARGUMENTS`,进第 1 步。
+- 摄入若运行,已创建 `<cwd>/.xcheck/<ts>/` 目录 → **第 3.2 步复用这个 `<ts>`,不要重复建**。
+- 触发判定 / 摘录 subagent / 逐条确认 / 退回反问 / 填槽的细节全在 `lib/context-intake.md`。
 
 ---
 
@@ -28,12 +38,12 @@ bash ~/.claude/skills/xcheck/lib/detect.sh
 
 ### 3.1 套 prompt 模板
 
-- **mode=diag** → 读 `~/.claude/skills/xcheck/prompts/diag.md`,把 `{{USER_INPUT}}` 替换成 `$ARGUMENTS`(若用户在对话里另外给了上下文/复现,替换 `{{CONTEXT}}`;没给就把整行 `{{CONTEXT}}` 那行删掉)。
-- **mode=review** → 读 `~/.claude/skills/xcheck/prompts/review.md`,把 `{{PROPOSAL}}` 替换成 `$ARGUMENTS`(若 `$ARGUMENTS` 是文件路径,先 Read 出全文再填)。
+- **mode=diag** → 读 `~/.claude/skills/xcheck/prompts/diag.md`,把 `{{USER_INPUT}}` 替换成 `$ARGUMENTS`**或第 0 步摄入确认后的事实清单**(若用户在对话里另外给了上下文/复现,替换 `{{CONTEXT}}`;没给就把整行 `{{CONTEXT}}` 那行删掉)。
+- **mode=review** → 读 `~/.claude/skills/xcheck/prompts/review.md`,把 `{{PROPOSAL}}` 替换成 `$ARGUMENTS`**或第 0 步摄入确认后的事实清单**(若 `$ARGUMENTS` 是文件路径,先 Read 出全文再填);`{{CONTEXT}}` 同 diag —— 有额外背景就填,没有就把整行删掉。
 
 ### 3.2 落盘 prompt(当前 cwd)
 
-生成时间戳目录 `.xcheck/<YYYYMMDD-HHMMSS>/`(本地时间,例 `20260809-143012`)。把上一步填好的最终 prompt 写到:
+复用第 0 步摄入时已建的时间戳目录 `.xcheck/<ts>/`;**若第 0 步跳过了摄入**(自包含输入),则在此生成 `<YYYYMMDD-HHMMSS>/`(本地时间,例 `20260809-143012`)。把上一步填好的最终 prompt 写到:
 ```
 <cwd>/.xcheck/<ts>/prompt.txt   # 用绝对路径
 ```
