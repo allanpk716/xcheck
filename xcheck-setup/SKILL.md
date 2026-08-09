@@ -25,7 +25,7 @@ args = "$ARGUMENTS"。分两种模式:
    - ⏱️ 超时(`timeout` 杀掉,exit 124)
    - ❌ 命令错(非 0 退出且没超时 —— 贴 stderr 摘要)
    - 🔑 可能未登录(stdout/stderr 出现 `login` / `auth` / `sign in` 字样)
-   - **容噪原则**(见 `~/.claude/skills/xcheck/../../docs/cli-findings.md` 或仓库 `docs/cli-findings.md` 的 Quirks):
+   - **容噪原则**(见仓库 `docs/cli-findings.md` 的 Quirks):
      - **codex** stdout 很吵(启动 banner、`hook:` 生命周期行、非致命 `rmcp::transport` MCP 错误、`codex` 角色标签、reply、`tokens used` 摘要、再回显一遍 reply)。MCP 错误**不算失败**,exit 仍是 0,marker 在 stdout 里就 ✅。marker 一般是最后一个非空行 / `hook: Stop` 前一行。
      - **opencode** stdout 开头有 ANSI 色码 + 一行 profile banner(`> build · glm-5.2`),空行,然后 reply。reply 是最后一个非空行;ANSI 不影响 grep marker。
      - **claude** stdout 干净,整段就是 reply。

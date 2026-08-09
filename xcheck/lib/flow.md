@@ -83,7 +83,7 @@ RESULT_SHAPE = <diag 结构 | review 结构>   # 由本 skill 的 mode 决定
 把所有 subagent 带回的**结构化结论**拼起来(`.xcheck/<ts>/<name>.summary.md` 的内容,逐个 agent 一段),填进汇总指令模板:
 
 - **mode=diag** → 读 `~/.claude/skills/xcheck/prompts/synthesize-diag.md`,把 `{{ALL_CONCLUSIONS}}` 替换成拼接好的各家结论。
-- **mode=review** → 读 `~/.claude/skills/xcheck/prompts/synthesize-review.md`。
+- **mode=review** → 读 `~/.claude/skills/xcheck/prompts/synthesize-review.md`,把 `{{ALL_REVIEWS}}` 替换成拼接好的各家评审。
 
 然后**你(主会话)**按该模板输出综合:共识 / 分歧 / 存疑(或各家裁决)+ 综合建议。写到:
 ```
