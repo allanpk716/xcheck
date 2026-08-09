@@ -21,3 +21,9 @@ run_cmd         = "opencode run"   # no --format json: default formatted text (T
 input_mode      = "arg"
 needs_timeout   = true             # known to hang on input occasionally -> force timeout
 timeout_sec     = 480
+
+[agents.pi]
+installed_check = "pi"
+run_cmd         = "pi -p"          # non-interactive print mode; prompt passed as trailing message arg
+input_mode      = "arg"
+needs_timeout   = false
