@@ -1,0 +1,23 @@
+# xcheck agent registry — how to call each local AI agent CLI non-interactively.
+# Values locked by Task 1 CLI smokes (see docs/cli-findings.md).
+# To add a new agent you installed: add a [agents.<name>] block below and run
+#   /xcheck:xcheck-setup   (or just re-run lib/detect.sh to confirm detection).
+
+[agents.claude]
+installed_check = "claude"
+run_cmd         = "claude -p"      # prompt passed as one quoted arg
+input_mode      = "arg"
+needs_timeout   = false
+
+[agents.codex]
+installed_check = "codex"
+run_cmd         = "codex exec -"   # reads prompt from stdin
+input_mode      = "stdin"
+needs_timeout   = false
+
+[agents.opencode]
+installed_check = "opencode"
+run_cmd         = "opencode run"   # no --format json: default formatted text (Task 1 decision)
+input_mode      = "arg"
+needs_timeout   = true             # known to hang on input occasionally -> force timeout
+timeout_sec     = 480
