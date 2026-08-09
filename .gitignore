@@ -1,0 +1,7 @@
+# xcheck runtime artifacts (created in cwd when the skill runs)
+/.xcheck/
+# symlink/junction probes
+/_jtest*
+# OS junk
+Thumbs.db
+desktop.ini
