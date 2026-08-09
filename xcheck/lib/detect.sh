@@ -19,6 +19,7 @@ NAMES=()
 CHECKS=()
 current=""
 while IFS= read -r line || [[ -n "$line" ]]; do
+  line="${line%$'\r'}"   # strip trailing CR -> CRLF-tolerant (git autocrlf on Windows)
   case "$line" in
     \[agents.*\])
       current="${line#\[agents.}"
