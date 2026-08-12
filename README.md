@@ -12,13 +12,13 @@
 xcheck is a set of global [Claude Code](https://code.claude.com/) skills. You hand it a bug / error / "why doesn't this work", or a design / proposal / code change, and it:
 
 0. **(Only if your input isn't self-contained)** pulls the **objective facts** out of your recent chat — keeps what you said / pasted, drops its own reasoning, never rewrites — and has you confirm them. The fan-out agents are fresh processes that can't see the conversation, so this is how they get context. A full stack trace or design doc skips this.
-1. **Detects** which local AI-agent CLIs you have installed (`claude`, `codex`, `opencode`, `pi`, …) and lets you pick a few.
+1. **Detects** which local AI-agent CLIs you have installed (`claude`, `codex`, `opencode`, `pi`, `kimi`, …) and lets you pick a few.
 2. **Fans them out in parallel**, each in its own isolated Claude subagent, so every agent reasons independently and can't see the others — **blind evaluation**.
 3. **Collects only** — subagents are forbidden from judging or merging opinions; they faithfully condense each agent's raw output.
 4. **Synthesizes** in the main session: what the agents **agree** on (strong signal), where they **diverge**, what only one claims (suspect).
 5. **Hands it to you** — consensus ≠ correctness. It never auto-fixes, auto-merges, or "approves". You make the call.
 
-The whole point is **heterogeneity**: if every "second opinion" comes from the same Claude you're already talking to, you learn nothing. xcheck insists on at least one non-`claude` agent (e.g. `codex`, `opencode`) so the opinions are genuinely independent.
+The whole point is **heterogeneity**: if every "second opinion" comes from the same Claude you're already talking to, you learn nothing. xcheck insists on at least one non-`claude` agent (e.g. `codex`, `opencode`, `kimi`) so the opinions are genuinely independent.
 
 ## Commands
 
@@ -47,7 +47,7 @@ you: /xcheck-diag "diagnose that thing from just now"   ← short / reference-li
   [2] you pick ── AskUserQuestion (reminds you: pick ≥1 non-claude)
         │
   [3] fan out  ── one Claude subagent per agent, in parallel (cheap model: haiku/sonnet)
-        │              subagent: Bash → claude -p / codex exec - / opencode run
+        │              subagent: Bash → claude -p / codex exec - / opencode run / kimi -p
         │              reads output → faithfully condenses (NEVER judges)
         │
   [4] collect  ── wait for all; mark timeouts/failures; raw output + summary → .xcheck/<ts>/
@@ -68,6 +68,7 @@ you: /xcheck-diag "diagnose that thing from just now"   ← short / reference-li
   - [`codex`](https://github.com/openai/codex) — `codex exec -` (reads prompt from stdin)
   - [`opencode`](https://opencode.ai/) — `opencode run` (timeout-guarded)
   - [`pi`](https://github.com/earendil-works/pi-mono) — `pi -p` (non-interactive print mode)
+  - [`kimi`](https://github.com/MoonshotAI/kimi-code) — `kimi -p` (Kimi Code CLI, non-interactive print mode)
   - Add more (gemini-cli, qwen, aider, …) via `/xcheck-setup add <name>`.
 - For xcheck to be **meaningful**, at least one must be non-`claude`.
 - A bash shell. Developed/tested on **Windows + Git Bash**; `detect.sh` is bash, so macOS/Linux should work too.
@@ -121,13 +122,13 @@ xcheck-setup/SKILL.md        # detect / verify / register
 `xcheck` 是一组全局 [Claude Code](https://code.claude.com/) skill。你给它一个 bug / 报错 / "为什么这个不工作"，或一个方案 / 设计 / 代码改动，它会：
 
 0. **（仅当输入不自包含时）摄入**——从最近对话里**摘客观事实**（留你说过 / 贴过的，丢它自己的推理，绝不改写原话），逐条经你确认后再往下传。下游 agent 是全新进程、看不到聊天记录，靠这步拿到背景。完整报错栈 / 设计文档这类自包含输入直接跳过。
-1. **检测**你本机装了哪些 AI agent CLI（`claude`、`codex`、`opencode`、`pi`……）让你多选几个。
+1. **检测**你本机装了哪些 AI agent CLI（`claude`、`codex`、`opencode`、`pi`、`kimi`……）让你多选几个。
 2. **并行派发**，每个 agent 包在独立的 Claude subagent 里独立推理，彼此看不见——**盲评**。
 3. **只搬运**——subagent 不许评判、不许合并观点，只忠实精简各家的原始输出。
 4. **主会话汇总**：各家**共识**（强信号）、**分歧**、只一家说的（存疑）。
 5. **交你拍板**——共识 ≠ 正确。绝不自动改代码 / 自动合并 / 自动"通过"。
 
-核心是**异构**：如果每个"第二意见"都来自你正在聊的同一个 Claude，你什么也得不到。xcheck 强制至少选一个**非 claude** 的 agent（如 `codex`、`opencode`），让意见真正独立。
+核心是**异构**：如果每个"第二意见"都来自你正在聊的同一个 Claude，你什么也得不到。xcheck 强制至少选一个**非 claude** 的 agent（如 `codex`、`opencode`、`kimi`），让意见真正独立。
 
 ### 四个命令（都是手动 slash 命令，不会自动触发）
 
@@ -146,7 +147,7 @@ xcheck-setup/SKILL.md        # detect / verify / register
 ### 环境要求
 
 - **[Claude Code](https://code.claude.com/)**——xcheck 是它的 skill，编排（subagent、`AskUserQuestion`）在它里面跑。
-- **一个或多个本机 AI agent CLI（在 `PATH` 上）。** 开箱认识：`claude`（`claude -p`）、`codex`（`codex exec -` 走 stdin）、`opencode`（`opencode run`，强制 timeout）、`pi`（`pi -p`，非交互 print 模式）。想加别的（gemini-cli、qwen、aider……）用 `/xcheck-setup add <name>`。
+- **一个或多个本机 AI agent CLI（在 `PATH` 上）。** 开箱认识：`claude`（`claude -p`）、`codex`（`codex exec -` 走 stdin）、`opencode`（`opencode run`，强制 timeout）、`pi`（`pi -p`，非交互 print 模式）、`kimi`（`kimi -p`，Kimi Code CLI，非交互 print 模式）。想加别的（gemini-cli、qwen、aider……）用 `/xcheck-setup add <name>`。
 - 要有意义，**至少一个非 claude**。
 - bash 环境。在 **Windows + Git Bash** 上开发/测试；`detect.sh` 是 bash，macOS/Linux 理论可用。
 

@@ -6,7 +6,7 @@ verbatim.
 
 **Environment**
 - Platform: Windows 10 + Git Bash (MSYS), GNU coreutils `timeout` 8.32.
-- Versions tested: `claude` 2.1.202, `codex` 0.141.0, `opencode` 1.17.12.
+- Versions tested: `claude` 2.1.202, `codex` 0.141.0, `opencode` 1.17.12. `kimi` (Kimi Code CLI) 0.35.0 added 2026-08-12.
 - Each command below was run with a 90s wall-clock timeout; every call returned
   well under that — **no CLI hung**.
 - All three CLIs were already authenticated — no auth walls encountered.
@@ -18,6 +18,7 @@ verbatim.
 | claude    | `arg`        | `claude -p {prompt}`                         | Whole stdout (claude prints only the reply)       |
 | codex     | `stdin`      | `codex exec -`                               | Last line of stdout (after a `codex` role banner) |
 | opencode  | `arg`        | `opencode run {prompt}`                      | Last non-empty stdout line (after a small banner) |
+| kimi      | `arg`        | `kimi -p {prompt}`                           | After the `• ` bullet prefix on stdout (no banner)|
 
 `{prompt}` is substituted as a single shell-quoted argv element for `arg` CLIs.
 For `stdin`, the prompt bytes are piped to `codex exec -`'s stdin (no argv
@@ -109,6 +110,29 @@ For completeness, `--format json` produced usable NDJSON (reply in the
 {"type":"text","timestamp":1786247246328,"sessionID":"ses_...","part":{"id":"prt_...","messageID":"msg_...","type":"text","text":"hello-from-opencode","time":{"start":1786247246316,"end":1786247246321}}}
 ```
 
+### kimi (arg) — marker `hello-from-kimi` and `ok-multi-line-kimi`
+
+```bash
+$ timeout 90 kimi -p "Reply with exactly this sentence and nothing else: hello-from-kimi"
+• hello-from-kimi
+# exit 0
+
+$ timeout 90 kimi -p "$(cat /tmp/xcheck-smoke.txt)"   # multi-line stress
+• ok-multi-line-kimi
+# exit 0
+```
+
+Stdout is the cleanest of the five: a single line starting with a `• ` bullet
+prefix, then the reply. No startup banner, no ANSI color escapes, no hook /
+MCP / lifecycle noise — unlike codex and opencode. The reply is everything
+after the `• ` prefix (may span multiple lines). Multi-line + special chars
+(`"double quotes"`, `'single quotes'`, `$variables`) survived intact, and the
+model correctly extracted the requested token from the last line of the
+multi-line input. Returned within a few seconds; no hang observed.
+
+Auth was preconfigured (`~/.kimi-code/config.toml` points at the Kimi Code
+coding endpoint with a K3 model); no login flow needed.
+
 ## Quirks the carrier (Task 2) must handle
 
 1. **codex noise + MCP errors.** Codex emits a multi-line banner, hook
@@ -140,4 +164,7 @@ input_mode = "stdin"    # run_cmd: codex exec -   (prompt piped to stdin)
 
 # opencode
 input_mode = "arg"      # run_cmd: opencode run {prompt}   (no --format flag)
+
+# kimi
+input_mode = "arg"      # run_cmd: kimi -p {prompt}
 ```

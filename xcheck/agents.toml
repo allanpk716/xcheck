@@ -38,3 +38,10 @@ run_cmd         = "pi -p"          # non-interactive print mode; prompt passed a
 input_mode      = "arg"
 needs_timeout   = false
 timeout_sec     = 1800
+
+[agents.kimi]
+installed_check = "kimi"
+run_cmd         = "kimi -p"         # non-interactive print mode; prompt passed as single arg (Kimi Code CLI)
+input_mode      = "arg"
+needs_timeout   = false
+timeout_sec     = 1800

@@ -61,7 +61,7 @@ argument-hint: <问题描述或方案>
 ## 铁律(同 /xcheck-diag、/xcheck-review,不重复打折扣)
 
 - **subagent 只搬运、不评判**(见 `lib/subagent-carrier.md`);综合判断只由主会话做。
-- 第 2 步多选时**至少选一个非 claude**(codex / opencode);全 claude 同构要二次确认并在 SUMMARY 里标注 "⚠️ 本次为同构,异构价值未体现"。
+- 第 2 步多选时**至少选一个非 claude**(codex / opencode / kimi);全 claude 同构要二次确认并在 SUMMARY 里标注 "⚠️ 本次为同构,异构价值未体现"。
 - 派 subagent 用**便宜模型**(haiku 或 sonnet),**一条消息里并行**派出去。
 - **opencode / 任何 needs_timeout=true 的 agent 必须加 timeout**(默认读 `agents.toml` 的 `[defaults].timeout_sec`=480,per-agent `timeout_sec` 可覆盖;`/xcheck-setup timeout` 可查改)。
 - 成败判定看**退出码**,codex 的 MCP/banner/hook 噪声 ≠ 失败。

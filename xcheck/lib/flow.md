@@ -28,7 +28,7 @@ bash ~/.claude/skills/xcheck/lib/detect.sh
 
 把已装的 agent 列成 AskUserQuestion 的选项让用户挑(multiSelect: true)。**问题文本里必须原样包含这句提醒**:
 
-> ⚠️ 至少选一个非 claude(如 codex / opencode),否则全是 Claude 同构,等于自己审自己。
+> ⚠️ 至少选一个非 claude(如 codex / opencode / kimi),否则全是 Claude 同构,等于自己审自己。
 
 - **若用户选的全是 claude 系**:再用 AskUserQuestion 确认一次 "确定只要 claude 同构吗?(不推荐)",仍坚持就继续,但在最终 SUMMARY 与汇报里**显著标注** "⚠️ 本次为同构诊断/评审,异构价值未体现"。
 - **若选的 ≥ 2 个且至少 1 个非 claude**:正常进行。

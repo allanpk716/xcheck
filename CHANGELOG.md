@@ -5,6 +5,13 @@ All notable changes to `xcheck`. Format loosely follows [Keep a Changelog](https
 
 ## [Unreleased] / 未发布
 
+## [0.5.0] - 2026-08-12
+
+### Added / 新增
+
+- **Recognize `kimi` (Kimi Code CLI) as a fifth default agent.** New `[agents.kimi]` in `agents.toml`: `kimi -p` in `arg` mode, auto-detected via `installed_check = "kimi"` — so it shows up in the `/xcheck` `/xcheck-diag` `/xcheck-review` multi-select list whenever the Kimi Code CLI is on `PATH`, and can be picked as a reviewer / discussant. No effect for users without `kimi` installed. Contract empirically locked (exit 0 on success; stdout is a single `• `-prefixed bullet then the reply — the cleanest of the five, no banner / ANSI / hook noise); see `docs/cli-findings.md`. README default-agent lists (EN + 中文), the carrier's stdout-shape notes, and the heterogeneity reminder examples (`SKILL.md` / `flow.md`) all synced. Heterogeneity win: Kimi K3 (Moonshot) is a fifth, independent opinion source distinct from Claude / OpenAI / GLM.
+- **登记 `kimi`（Kimi Code CLI）为第 5 个开箱即识的 agent。** `agents.toml` 新增 `[agents.kimi]`：`kimi -p`，`arg` 模式，`installed_check = "kimi"` 自动探测——只要本机 PATH 上有 Kimi Code CLI，就会出现在 `/xcheck` `/xcheck-diag` `/xcheck-review` 的多选列表里，可选作评审者/讨论者。对没装 `kimi` 的用户无影响。契约已实测锁定（成功 exit 0；stdout 是一行 `• ` 前缀的 bullet 然后 reply——五家里最干净，无 banner / ANSI / 生命周期噪声）；详见 `docs/cli-findings.md`。README 默认 agent 列表（EN + 中文）、carrier 的 stdout 形态说明、异构提醒示例（`SKILL.md` / `flow.md`）均已同步。异构增益：Kimi K3（Moonshot）是区别于 Claude / OpenAI / GLM 的第五个独立意见源。
+
 ## [0.4.1] - 2026-08-12
 
 ### Fixed / 修复

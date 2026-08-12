@@ -54,6 +54,7 @@
   - **codex 的真实诊断结论** = `hook: Stop` 前一段带 `codex` 角色标签的正文;为了稳妥,**取 stdout 最后一个非空行往前的整段 prose 作为 reply**(codex 会把 reply 在最末尾再回显一遍)。如果你不确定哪段是 reply,就取最末那个非空行向前直到上一个明显边界(角色标签/banner)之间的内容。
   - codex 经常会输出 markdown,正文里可能就有 `根因:` `证据:` `置信度:` 这样的字段 —— 直接用。
 - **opencode**:stdout 开头是 ANSI 色码 + 一行 profile banner(`> build · glm-5.2`),空行,然后是 reply。reply 是**最后一个非空 stdout 段**(可能是多行)。ANSI 转义不用洗,你读得懂。
+- **kimi**:stdout 以一个 `• ` 前缀的 bullet 开头,然后是 reply。无 banner、无 ANSI、无生命周期噪声 —— 比 codex/opencode 都干净。reply 是 `• ` 之后的内容(可能多行)。
 
 定位 reply 的通用兜底:**取 stdout 最后一段非空输出作为该 agent 的诊断结论**。如果你看到 reply 里已经自带 `根因/证据/置信度/建议` 字样,直接摘录,别重写。
 
