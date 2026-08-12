@@ -1,0 +1,16 @@
+# Normalize all text files to LF in the repo and on checkout.
+# Overrides core.autocrlf (Windows default = true) so contributors on any
+# platform get identical line endings — no CRLF/LF noise in diffs, no
+# "LF will be replaced by CRLF" warnings, no gofmt/markdown churn.
+* text=auto eol=lf
+
+# Explicit guarantees for the types actually in this repo.
+*.md   text eol=lf
+*.toml text eol=lf
+*.sh   text eol=lf
+
+# Shell scripts must stay executable + LF (detect.sh is invoked via bash).
+*.sh   text eol=lf
+
+# License / plain text.
+LICENSE text eol=lf

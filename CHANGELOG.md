@@ -5,6 +5,13 @@ All notable changes to `xcheck`. Format loosely follows [Keep a Changelog](https
 
 ## [Unreleased] / 未发布
 
+## [0.4.1] - 2026-08-12
+
+### Fixed / 修复
+
+- **Enforce LF line endings via `.gitattributes`.** `core.autocrlf=true` (Windows default) emitted "LF will be replaced by CRLF" warnings on checkout for `.md`/`.toml` files. The repo blobs were already LF-clean (commit normalizes), so no existing files needed renormalization — the new `.gitattributes` (`* text=auto eol=lf`, plus explicit `*.md`/`*.toml`/`*.sh`/`LICENSE`) pins LF going forward so every platform gets identical endings and the warning is gone.
+- **用 `.gitattributes` 强制 LF 行尾。** `core.autocrlf=true`（Windows 默认）在 checkout `.md`/`.toml` 文件时反复报 "LF will be replaced by CRLF"。仓库 blob 本来就是干净的 LF（commit 时已规范化），无需重存现有文件——新增的 `.gitattributes`（`* text=auto eol=lf`，外加显式 `*.md`/`*.toml`/`*.sh`/`LICENSE`）从此固定 LF，跨平台一致、消除警告。
+
 ## [0.4.0] - 2026-08-12
 
 ### Added / 新增
