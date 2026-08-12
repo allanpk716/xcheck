@@ -2,7 +2,7 @@
 name: xcheck-setup
 description: 检测本地已装的 AI agent CLI、逐个验证非交互命令能跑通、登记新 agent。手动调用 /xcheck-setup。
 disable-model-invocation: true
-argument-hint: [add <name>]
+argument-hint: [add <name> | timeout [N | <agent> N]]
 ---
 
 # /xcheck-setup — 检测 / 验证 / 登记 xcheck 的 agent
@@ -41,6 +41,22 @@ args = "$ARGUMENTS"。分两种模式:
    - `run_cmd` —— 不含 prompt 的命令前缀(如 `gemini -p` / `qwen exec -`)
    - `input_mode` —— `arg`(prompt 作为单个 argv)或 `stdin`(prompt 管道喂入)
    - `needs_timeout` —— 历史上会卡输入的 CLI 写 `true`(参考 opencode)
-   - `timeout_sec` —— 仅在 `needs_timeout = true` 时填(默认 480)
+   - `timeout_sec` —— 显式填(默认 480;也可登记后用模式 C `/xcheck-setup timeout <name> <秒>` 改)。所有 agent 都带 `timeout` 笼子,与 needs_timeout 无关(needs_timeout=true 只是标记"历史会卡"的提示)。
 4. 把新 `[agents.<name>]` 块**追加**写进 `~/.claude/skills/xcheck/agents.toml`(用 Edit,别覆盖整个文件)。
 5. 立刻按模式 A 验证这个新 agent 能跑通(写 `/tmp/xcheck-verify-<name>.txt`、跑它的 run_cmd、看 marker `hello-from-<name>` 是否出现)。✅ 才算登记成功;否则回退 agents.toml 的修改并报告失败原因。
+
+## 模式 C:`timeout [...]` → 查看 / 设置 agent 最大执行秒数
+
+xcheck 调用 agent 时给 shell 套的 `timeout <sec>` 上限。**只影响 xcheck,不影响 agent 自己单独跑。** 优先级: per-agent `timeout_sec` > `[defaults].timeout_sec`(默认 480)。
+
+3 种调用:
+
+- **`/xcheck-setup timeout`**(无参)→ 读 `agents.toml`,打印当前 `[defaults].timeout_sec` + 每个 agent 的 `timeout_sec`,表格呈现。
+- **`/xcheck-setup timeout <N>`**(一个整数)→ 把 `[defaults].timeout_sec` 改成 N(影响所有"没单独配 per-agent timeout"的 agent;per-agent 显式值不受影响)。改前给一句确认提示(N<60 或 N>1800 时警告"异常区间,确认?")。
+- **`/xcheck-setup timeout <agent> <N>`**(agent 名 + 整数)→ 把 `[agents.<agent>].timeout_sec` 改成 N(per-agent 覆盖)。agent 名必须在 agents.toml 里存在,否则报错并列出可用 agent。
+
+执行(主会话):
+1. 读 `~/.claude/skills/xcheck/agents.toml`。
+2. 用 **Edit** 精确匹配改对应行(`timeout_sec = <旧值>` → `timeout_sec = <新值>`),**不要** Write 覆盖整个文件(会丢注释/格式)。改 `[defaults]` 就匹配 `[defaults]` 块下那行;改 per-agent 就匹配 `[agents.<name>]` 块下那行。
+3. 改完回显新配置(同无参视图),并提示"下次 /xcheck 即生效"。
+4. N 必须是正整数;非整数报错不改。

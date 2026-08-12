@@ -1,29 +1,40 @@
 # xcheck agent registry — how to call each local AI agent CLI non-interactively.
 # Values locked by Task 1 CLI smokes (see docs/cli-findings.md).
-# To add a new agent you installed: add a [agents.<name>] block below and run
-#   /xcheck:xcheck-setup   (or just re-run lib/detect.sh to confirm detection).
+# To add a new agent you installed: add an [agents.<name>] block below and run
+#   /xcheck-setup   (or just re-run lib/detect.sh to confirm detection).
+#
+# 超时配置: xcheck 调用 agent 时给 shell 套的 `timeout <sec>` 上限(只影响 xcheck,
+# 不影响 agent 自己单独跑)。优先级: per-agent timeout_sec  > [defaults].timeout_sec。
+# 用 /xcheck-setup timeout [N|<agent> N] 查看/设置。
+
+[defaults]
+# 所有 agent 的默认最大执行秒数。per-agent timeout_sec 覆盖此值。
+timeout_sec = 1800
 
 [agents.claude]
 installed_check = "claude"
 run_cmd         = "claude -p"      # prompt passed as one quoted arg
 input_mode      = "arg"
 needs_timeout   = false
+timeout_sec     = 1800
 
 [agents.codex]
 installed_check = "codex"
 run_cmd         = "codex exec -"   # reads prompt from stdin
 input_mode      = "stdin"
 needs_timeout   = false
+timeout_sec     = 1800
 
 [agents.opencode]
 installed_check = "opencode"
 run_cmd         = "opencode run"   # no --format json: default formatted text (Task 1 decision)
 input_mode      = "arg"
 needs_timeout   = true             # known to hang on input occasionally -> force timeout
-timeout_sec     = 480
+timeout_sec     = 1800
 
 [agents.pi]
 installed_check = "pi"
 run_cmd         = "pi -p"          # non-interactive print mode; prompt passed as trailing message arg
 input_mode      = "arg"
 needs_timeout   = false
+timeout_sec     = 1800

@@ -41,6 +41,12 @@ bash ~/.claude/skills/xcheck/lib/detect.sh
 - **mode=diag** → 读 `~/.claude/skills/xcheck/prompts/diag.md`,把 `{{USER_INPUT}}` 替换成 `$ARGUMENTS`**或第 0 步摄入确认后的事实清单**(若用户在对话里另外给了上下文/复现,替换 `{{CONTEXT}}`;没给就把整行 `{{CONTEXT}}` 那行删掉)。
 - **mode=review** → 读 `~/.claude/skills/xcheck/prompts/review.md`,把 `{{PROPOSAL}}` 替换成 `$ARGUMENTS`**或第 0 步摄入确认后的事实清单**(若 `$ARGUMENTS` 是文件路径,先 Read 出全文再填);`{{CONTEXT}}` 同 diag —— 有额外背景就填,没有就把整行删掉。
 
+> **固化 proposal 时的自代入陷阱**:当 controller 把多轮 brainstorming 讨论固化成自包含 proposal(走 context-intake.md 的"方案型指代"例外)时,**避免在 proposal 正文里写会让被评 agent 自代入的背景** —— 否则被评 agent 可能把自己当成"该跑评审流程的人",去加载 skill / 找别的 agent(实测会触发权限弹窗失败)。需要的历史上下文用**中性陈述**,只讲事实、不带触发词:
+> - ❌「codex 上轮抓到口令轮换 bug」「三家异构 agent 都给了 SUGGEST_CHANGES」
+> - ✅「本方案曾有一个口令轮换相关缺陷,已通过改用明文备份解决」「这是该方案的第二版」
+>
+> 讲清楚"发生过什么"即可,别点名 agent / 别写"异构评审"这类会被误读为编排指令的词。
+
 ### 3.2 落盘 prompt(当前 cwd)
 
 复用第 0 步摄入时已建的时间戳目录 `.xcheck/<ts>/`;**若第 0 步跳过了摄入**(自包含输入),则在此生成 `<YYYYMMDD-HHMMSS>/`(本地时间,例 `20260809-143012`)。把上一步填好的最终 prompt 写到:
@@ -54,7 +60,7 @@ bash ~/.claude/skills/xcheck/lib/detect.sh
 读 `~/.claude/skills/xcheck/agents.toml`,对 SELECTED 里每个 agent 取出:
 - `run_cmd`(如 `codex exec -`、`opencode run`、`claude -p`)—— **不含 prompt**;
 - `input_mode`(`arg` 或 `stdin`);
-- `needs_timeout` / `timeout_sec`(默认 480)。
+- `needs_timeout` / `timeout_sec`(per-agent 优先;否则取 `agents.toml` 顶部 `[defaults].timeout_sec`,默认 480;`/xcheck-setup timeout` 可查改)。
 
 ### 3.4 一条消息里并发派 |SELECTED| 个 subagent(关键)
 
@@ -67,7 +73,7 @@ AGENT_NAME = <name>
 CLI_CMD = <run_cmd>
 INPUT_MODE = <arg | stdin>
 PROMPT_FILE = <cwd>/.xcheck/<ts>/prompt.txt
-TIMEOUT = <timeout_sec 或 480>
+TIMEOUT = <timeout_sec;per-agent 优先,否则取 [defaults].timeout_sec(480)>
 RESULT_SHAPE = <diag 结构 | review 结构>   # 由本 skill 的 mode 决定
 ```
 

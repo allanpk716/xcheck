@@ -33,6 +33,8 @@ argument-hint: <问题描述或方案>
 
 > **Tie-break 原则**:不设"哪边赢"。只要分类不是单边命中,就视为不确定,反问用户。原因:用户输入一旦同时出现"报错"和"方案"(比如"我用了 localStorage 存登录态但报错了,这个方案行不行"),两种意图都合理,模型瞎押一边风险大于多问一句的成本。让用户一句话澄清,远比跑错流程返工划算。
 
+> **指代词例外(不走 ambiguous)**:若输入**命中 review 强信号**、且含指代词(刚才/那个/上面/之前/这个/这/那/this/that/above 等),即使没命中 diag 也**直接走 review** —— 这种组合明确是"评审刚才讨论的方案",不可能是诊断。同理 diag 强信号 + 指代词 → 直接 diag。ambiguous 只留给"review+diag 强信号同时命中"或"两边都无强信号"这两种真不确定的情况。
+
 ### 第 0.A 步:ambiguous → AskUserQuestion(不猜)
 
 用 AskUserQuestion 给两个选项(让用户选 + 可补充):
@@ -61,7 +63,7 @@ argument-hint: <问题描述或方案>
 - **subagent 只搬运、不评判**(见 `lib/subagent-carrier.md`);综合判断只由主会话做。
 - 第 2 步多选时**至少选一个非 claude**(codex / opencode);全 claude 同构要二次确认并在 SUMMARY 里标注 "⚠️ 本次为同构,异构价值未体现"。
 - 派 subagent 用**便宜模型**(haiku 或 sonnet),**一条消息里并行**派出去。
-- **opencode / 任何 needs_timeout=true 的 agent 必须加 timeout**(默认 480s)。
+- **opencode / 任何 needs_timeout=true 的 agent 必须加 timeout**(默认读 `agents.toml` 的 `[defaults].timeout_sec`=480,per-agent `timeout_sec` 可覆盖;`/xcheck-setup timeout` 可查改)。
 - 成败判定看**退出码**,codex 的 MCP/banner/hook 噪声 ≠ 失败。
 - 结果全部落盘到 `<cwd>/.xcheck/<时间戳>/`(prompt.txt、`<agent>.raw.out`、`<agent>.summary.md`、SUMMARY.md);`.xcheck/` 已 gitignore,不要 commit。
 - 最后**交用户拍板**,原样输出:"**以上是建议,共识 ≠ 正确,最终你拍板。**" 绝不自动改代码 / 自动合并 / 自动"通过"。
