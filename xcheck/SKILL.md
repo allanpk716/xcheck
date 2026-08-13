@@ -2,7 +2,7 @@
 name: xcheck
 description: 自动判断 —— 把一段模糊描述路由到并行诊断(/xcheck-diag)或交叉评审(/xcheck-review);判断不了就反问,不瞎猜。手动调用 /xcheck。
 disable-model-invocation: true
-argument-hint: <问题描述或方案>
+argument-hint: [--agents a,b,c] <问题描述或方案>
 ---
 
 # /xcheck — 自动路由
@@ -10,6 +10,10 @@ argument-hint: <问题描述或方案>
 `$ARGUMENTS` 是用户给的一段(可能模糊的)描述。你**先判断**它更像"技术问题"还是"方案评审",再交给 `~/.claude/skills/xcheck/lib/flow.md` 走对应的 mode。**你不重新实现 flow.md 的「第 0 步摄入 + 5 步」,只做分类 + 转派。**
 
 ---
+
+### 先抠 --agents(可选,在分类之前)
+
+若 `$ARGUMENTS` 含 `--agents`:其值 = 紧跟后**一个空白分隔 token**(纯逗号串,如 `codex,kimi`,不含空格)。把 `--agents <token>` 从 `$ARGUMENTS` 删掉,剩余文本才送去分类;token 非空 → 记 `OVERRIDE_AGENTS = <列表>`,**转派 diag/review 时原样带上**;token 为空 → 当没敲。优先级最高,盖过默认集,不改默认。
 
 ## 第 0 步:分类(只这一步是你的活)
 
@@ -53,6 +57,8 @@ argument-hint: <问题描述或方案>
 
 - **mode=diag** → 按 `~/.claude/skills/xcheck/lib/flow.md` 的「第 0 步摄入(可选)+ 5 步」执行,本次 mode = diag;外部 prompt 用 `~/.claude/skills/xcheck/prompts/diag.md`(填 `{{USER_INPUT}}` = `$ARGUMENTS`,或第 0 步摄入确认后的事实清单),汇总模板用 `~/.claude/skills/xcheck/prompts/synthesize-diag.md`。
 - **mode=review** → 按 `~/.claude/skills/xcheck/lib/flow.md` 的「第 0 步摄入(可选)+ 5 步」执行,本次 mode = review;外部 prompt 用 `~/.claude/skills/xcheck/prompts/review.md`(若 `$ARGUMENTS` 是文件路径先 Read 出全文;或第 0 步摄入确认后的事实清单),汇总模板用 `~/.claude/skills/xcheck/prompts/synthesize-review.md`。
+
+> 无论 diag 还是 review:若本壳抠到了 `OVERRIDE_AGENTS`,转派 flow.md 时**带上**它(flow.md 第 2 步据此走候选集分支,不再看默认集)。
 
 也就是说,除了你自己的「第 0 步分类」,后面整套都是 flow.md 的逻辑 —— flow.md 会先跑**它自己的第 0 步(摄入,可选)**,再走检测 → 多选 → 并行派 subagent → 收齐落盘 → 主会话汇总。你只是带着确定的 mode 进去执行;若用户输入是"诊断刚才那个"这种指代性输入,flow.md 第 0 步会自动摘对话背景(见 `lib/context-intake.md`)。
 
