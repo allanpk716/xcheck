@@ -6,10 +6,18 @@
 # 超时配置: xcheck 调用 agent 时给 shell 套的 `timeout <sec>` 上限(只影响 xcheck,
 # 不影响 agent 自己单独跑)。优先级: per-agent timeout_sec  > [defaults].timeout_sec。
 # 用 /xcheck-setup timeout [N|<agent> N] 查看/设置。
+#
+# 默认 agent 集: 设了之后 /xcheck 直接拿这组跑,跳过每次勾选。
+# 字段 default_agents = ["claude", "codex", ...](名字须对得上下面 [agents.<name>] 的 key)。
+# 字段缺失/空 = 未设默认 → 每次运行弹多选(出厂默认)。
+# 用 /xcheck-setup default [a,b,c | --clear] 查看/设置/清空。
 
 [defaults]
 # 所有 agent 的默认最大执行秒数。per-agent timeout_sec 覆盖此值。
 timeout_sec = 1800
+# 默认 agent 集(可选)。设了 /xcheck 就跳过每次勾选直接用这组。
+# 出厂不设(注释掉);要用就取消注释、填名字。详见顶部说明。
+# default_agents = ["claude", "codex", "kimi"]
 
 [agents.claude]
 installed_check = "claude"
