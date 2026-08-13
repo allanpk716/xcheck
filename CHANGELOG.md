@@ -5,6 +5,13 @@ All notable changes to `xcheck`. Format loosely follows [Keep a Changelog](https
 
 ## [Unreleased] / 未发布
 
+## [0.7.0] - 2026-08-13
+
+### Added / 新增
+
+- **Default agent set + `--agents` override.** `/xcheck-setup default <a>,<b>,...` lets you preset the agent group once; subsequent `/xcheck` / `/xcheck-diag` / `/xcheck-review` runs skip the per-run multi-select and go straight to that set. Stored in `agents.toml` `[defaults].default_agents`. `flow.md` 第 2 步 rewritten into a three-branch selection (default set / `--agents` / multi-select), fully backward-compatible (field absent = old per-run picker). A one-off override is possible via `--agents a,b,c` on any of the three shells. Missing agents in the default set trigger a single-select fallback (run with the remainder / re-pick); a corrupted name in `default_agents` is defensively dropped, while a bad name in `--agents` (a typo) stops with an error listing valid names. Heterogeneity is warned-not-blocked at setup time and flagged in SUMMARY at run time (same as before). Design: `docs/superpowers/specs/2026-08-13-xcheck-default-agents-design.md`.
+- **默认 agent 集 + `--agents` 临时换集。** `/xcheck-setup default <a>,<b>,...` 可预设一组默认 agent,此后 `/xcheck` / `/xcheck-diag` / `/xcheck-review` 跳过每次的勾选弹窗、直接拿这组跑。存在 `agents.toml` 的 `[defaults].default_agents`。`flow.md` 第 2 步重写为三分支(默认集 / `--agents` / 多选),完全向后兼容(字段缺失 = 旧行为,每次弹窗)。任一壳加 `--agents a,b,c` 可临时换一组、不改默认。默认集里有 agent 当前未装 → 弹单选兜底(用剩余 / 重新选);`default_agents` 里被手改出的坏名 → 防御性剔除,`--agents` 里的坏名(笔误)→ 报错停住并列出合法名字。异构在 setup 阶段只警告不拦、运行时在 SUMMARY 标注(同前)。设计见 `docs/superpowers/specs/2026-08-13-xcheck-default-agents-design.md`。
+
 ## [0.5.0] - 2026-08-12
 
 ### Added / 新增
