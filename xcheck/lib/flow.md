@@ -23,16 +23,45 @@ bash ~/.claude/skills/xcheck/lib/detect.sh
 - stdout = 已安装可选的 agent(每行 `name \t installed_check \t installed`)。stderr = 已登记但未装的(每行 `... \t missing`)。
 - 数 stdout 里的 agent 数。
   - **若已装 < 2 个**:告诉用户装的太少(异构至少要 2 个、且至少 1 个非 claude),建议先 `/xcheck-setup` 核实,然后**停**,不继续。不要硬跑单 agent。
+- **记 `INSTALLED`** = stdout 里所有已装 agent 的名字列表(小写,与 agents.toml key 一致),供第 2 步取交集用。
 
-## 第 2 步:让用户多选(AskUserQuestion,multiSelect: true)
+## 第 2 步:定 SELECTED(默认集 / --agents / 多选 三分支)
 
-把已装的 agent 列成 AskUserQuestion 的选项让用户挑(multiSelect: true)。**问题文本里必须原样包含这句提醒**:
+先定**候选集 CANDIDATES**(优先级从高到低):
 
-> ⚠️ 至少选一个非 claude(如 codex / opencode / kimi),否则全是 Claude 同构,等于自己审自己。
+1. 若壳传来了 `OVERRIDE_AGENTS`(用户敲了 `--agents a,b,c` 且 token 非空)→ `CANDIDATES = OVERRIDE_AGENTS`。
+2. 否则读 `~/.claude/skills/xcheck/agents.toml` 的 `[defaults].default_agents`:字段存在且非空 → `CANDIDATES = default_agents`。
+3. 两者都没有 → `CANDIDATES = null`(走分支 A)。
 
-- **若用户选的全是 claude 系**:再用 AskUserQuestion 确认一次 "确定只要 claude 同构吗?(不推荐)",仍坚持就继续,但在最终 SUMMARY 与汇报里**显著标注** "⚠️ 本次为同构诊断/评审,异构价值未体现"。
-- **若选的 ≥ 2 个且至少 1 个非 claude**:正常进行。
-- 记 `SELECTED` = 选中的 agent 名列表(小写,与 agents.toml 的 key 一致)。
+**坏名处理(定 CANDIDATES 时)**:
+
+- CANDIDATES 来自 `OVERRIDE_AGENTS` 且**有名字不在 agents.toml 的 `[agents.<name>]`** → **报错停住**,打印"名字 X 不在 agents.toml;可用 agent:<列出所有 [agents.*] key>",不继续(用户显式指令,笔误立即停)。
+- CANDIDATES 来自 `default_agents` 且有坏名(toml 被手改坏)→ **防御性剔除**该名,继续(不崩)。
+
+然后取交集 `INTER = CANDIDATES ∩ INSTALLED`,按分支走:
+
+- **分支 A · CANDIDATES 为 null**(未设默认、也没 --agents):沿用旧行为。把 INSTALLED 列成 `AskUserQuestion(multiSelect: true)` 让用户挑,问题文本必须原样包含:
+
+  > ⚠️ 至少选一个非 claude(如 codex / opencode / kimi),否则全是 Claude 同构,等于自己审自己。
+
+  选完全是 claude 系 → 再用 AskUserQuestion 确认一次 "确定只要 claude 同构吗?(不推荐)",仍坚持就继续。`SELECTED` = 选中的(小写)。
+
+- **分支 B · CANDIDATES 非空且 CANDIDATES ⊆ INSTALLED**(全装了):**跳过弹窗**,直接 `SELECTED = CANDIDATES`。
+
+- **分支 C · CANDIDATES 非空但有缺失(CANDIDATES ⊄ INSTALLED)**:
+  - 若 `INTER` 为空(候选集整组都没装)→ 直接走分支 A(别弹个只剩"重新选"的空壳)。
+  - 否则弹 `AskUserQuestion`(**单选**,非 multiSelect),两选项:
+    - 选项 1:`用剩余默认集跑(<列出 INTER 里的名字>)` → `SELECTED = INTER`
+    - 选项 2:`重新选(弹多选)` → 走分支 A 的完整多选(列所有 INSTALLED,可勾候选集之外的)
+  - 弹窗文本写清"候选集里有 X 家当前未装/未登录:<CANDIDATES − INSTALLED>"。
+
+**异构校验(SELECTED 定下之后)**:
+
+- 分支 B、分支 C 选 1:若 `SELECTED` 同构(全 claude 或 < 2 个)→ **不拦**,但在第 5 步 SUMMARY 顶部记标注 "⚠️ 本次为同构诊断/评审,异构价值未体现"。
+- 分支 A:维持上面"全 claude 二次确认"的旧逻辑。
+- `--agents` 同构:同分支 B,只标注不拦。
+
+记 `SELECTED` = 最终选中的 agent 名列表(小写,与 agents.toml key 一致)。进第 3 步。
 
 ## 第 3 步:准备 prompt + 并行派 subagent
 
@@ -155,5 +184,5 @@ RESULT_SHAPE = <diag 结构 | review 结构>   # 由本 skill 的 mode 决定
 
 - **subagent 报超时/失败**:照样落 `.failed.md`,继续对其它 agent 做综合(不要因为一个挂了就整体崩)。在 SUMMARY 里注明 "本轮 <agent> 未返回/失败,以下综合基于其余 N 家"。
 - **全 claude 同构**(用户坚持):照常跑,但 SUMMARY 顶部必须显著标注 "⚠️ 本次为同构,异构价值未体现"。
-- **用户在对话里改主意**(想加/换 agent):回到第 2 步重选,然后第 3 步重新派。
+- **用户在对话里改主意**(想加/换 agent):回到第 2 步重选(适用 --agents / 默认集 / 多选三种来源),然后第 3 步重新派。
 - **`.xcheck/` 不要 commit** —— 已 gitignore。源文件只有仓库里的 skill 文件本身。
