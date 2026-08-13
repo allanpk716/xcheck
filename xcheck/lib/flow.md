@@ -37,6 +37,7 @@ bash ~/.claude/skills/xcheck/lib/detect.sh
 
 - CANDIDATES 来自 `OVERRIDE_AGENTS` 且**有名字不在 agents.toml 的 `[agents.<name>]`** → **报错停住**,打印"名字 X 不在 agents.toml;可用 agent:<列出所有 [agents.*] key>",不继续(用户显式指令,笔误立即停)。
 - CANDIDATES 来自 `default_agents` 且有坏名(toml 被手改坏)→ **防御性剔除**该名,继续(不崩)。
+- **CANDIDATES 剔除后变空**(默认集整组都被改坏)→ 视同 `null`,走分支 A(全量多选),别让流程带空集进第 3 步。
 
 然后取交集 `INTER = CANDIDATES ∩ INSTALLED`,按分支走:
 
