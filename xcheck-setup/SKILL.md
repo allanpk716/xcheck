@@ -69,7 +69,7 @@ xcheck 调用 agent 时给 shell 套的 `timeout <sec>` 上限。**只影响 xch
 
 - **`/xcheck-setup default`**(无参)→ 读 `agents.toml` 的 `[defaults].default_agents`。有值就表格/列表呈现当前默认集;没设(字段缺失/空)就提示"未设默认,每次运行会弹多选"。
 - **`/xcheck-setup default <n1>,<n2>,...`**(逗号分隔的名字)→ 设置默认集。空格忽略;同名去重、保序(首次出现为准)。
-- **`/xcheck-setup default --clear`** → 清空默认集(回到每次弹窗)。
+- **`/xcheck-setup default --clear`**(或设空字符串 `default ""`)→ 清空默认集(回到每次弹窗),提示"已清空"。
 
 执行(主会话):
 
