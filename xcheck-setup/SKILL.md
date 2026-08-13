@@ -2,7 +2,7 @@
 name: xcheck-setup
 description: 检测本地已装的 AI agent CLI、逐个验证非交互命令能跑通、登记新 agent。手动调用 /xcheck-setup。
 disable-model-invocation: true
-argument-hint: [add <name> | timeout [N | <agent> N]]
+argument-hint: [add <name> | timeout [N | <agent> N] | default [<n1>,<n2>,... | --clear]]
 ---
 
 # /xcheck-setup — 检测 / 验证 / 登记 xcheck 的 agent
@@ -60,3 +60,25 @@ xcheck 调用 agent 时给 shell 套的 `timeout <sec>` 上限。**只影响 xch
 2. 用 **Edit** 精确匹配改对应行(`timeout_sec = <旧值>` → `timeout_sec = <新值>`),**不要** Write 覆盖整个文件(会丢注释/格式)。改 `[defaults]` 就匹配 `[defaults]` 块下那行;改 per-agent 就匹配 `[agents.<name>]` 块下那行。
 3. 改完回显新配置(同无参视图),并提示"下次 /xcheck 即生效"。
 4. N 必须是正整数;非整数报错不改。
+
+## 模式 D:`default [...]` → 查看 / 设置 / 清空默认 agent 集
+
+设了默认集之后,`/xcheck`(及 diag/review)会**直接拿这组跑,跳过每次的勾选弹窗**;没设就回退到每次弹多选。详见 `~/.claude/skills/xcheck/lib/flow.md` 第 2 步。优先级:`--agents` 临时参数 > `default_agents` > 每次弹窗。
+
+3 种调用:
+
+- **`/xcheck-setup default`**(无参)→ 读 `agents.toml` 的 `[defaults].default_agents`。有值就表格/列表呈现当前默认集;没设(字段缺失/空)就提示"未设默认,每次运行会弹多选"。
+- **`/xcheck-setup default <n1>,<n2>,...`**(逗号分隔的名字)→ 设置默认集。空格忽略;同名去重、保序(首次出现为准)。
+- **`/xcheck-setup default --clear`** → 清空默认集(回到每次弹窗)。
+
+执行(主会话):
+
+1. 读 `~/.claude/skills/xcheck/agents.toml`。
+2. **名字合法性**:每个名字必须存在于 `[agents.<name>]` 块。任一不存在 → 报错、列出当前 toml 里所有合法 agent 名、**不改文件**。
+3. **异构校验(警告但允许)**:若设的集同构(全 claude,或 < 2 个,或无非 claude)→ 打印警告"⚠️ 默认集为同构/单 agent,异构价值未体现,仍照设",**不拦**,继续写。
+4. **写文件用 Edit 精确匹配改 `[defaults]` 块**(跟模式 C 同做法,不要 Write 覆盖):
+   - 首次设置(toml 里 `default_agents` 还是注释行/不存在)→ 把注释行 `# default_agents = [...]` 替换成实际值行 `default_agents = ["claude", "codex", ...]`(数组按 toml 语法:双引号名字、逗号分隔、空格可忽略)。
+   - 已有实际值 → 把旧的那行 `default_agents = [旧值]` 替换成新值。
+   - `--clear` → 把实际值行改回注释行 `# default_agents = [...]`(或直接删该行)。
+5. **改完回显**新配置(同无参视图),提示"下次 /xcheck 即生效"。
+6. **不在 setup 阶段校验"已装"**:默认集里的 agent 当前装没装,由运行时 flow.md 第 1 步 detect 判定。setup 只保证名字在 toml 里合法。
