@@ -5,6 +5,18 @@ All notable changes to `xcheck`. Format loosely follows [Keep a Changelog](https
 
 ## [Unreleased] / 未发布
 
+## [0.9.0] - 2026-08-14
+
+### Added / 新增
+
+- **`/xcheck-close` — review feedback close-loop.** After `/xcheck-review`'s triage (three verifiability tiers), the loop used to dead-end at "you decide". The new 5th shell closes it, all human-in-the-loop: **C1** verify tier-1 items read-only (✅/❌/❓, main session, evidence per item); **C2** run tier-2 experiments after one multiSelect approval (temp files under `.xcheck/<ts>/exp/` kept; no business-code edits / no network / no deploy); **C3** distill into a must-fix list (confirmed + experiment-supported), rejected items explicitly excluded, unresolved items decided by the user; **C4** main session writes the revision as a **new** `<name>.rev<m>.md` + diff (original untouched); **C5** optional re-review per round, hard cap 2 revision rounds, convergence = tiers 1+2 clear, otherwise "recommend starting over". Progress lands in `CLOSE.md` (per-stage append, resumable); the source SUMMARY gets a one-line `closed` marker only when the loop finishes. Review runs now also write `run.md` (mode/SELECTED/ts/prompt/source) that close uses to locate the re-review agent set; step 6.5 points review users at `/xcheck-close`. Design: `docs/superpowers/specs/2026-08-14-xcheck-close-loop-design.md`.
+- **`/xcheck-close` —— 评审反馈闭环。** `/xcheck-review` 的三类分级(triage)此前止步于"你拍板",反馈没有下文。新增第 5 个入口壳闭环续上,全程人在环:**C1** 只读查证第一类(✅ 证实 / ❌ 证伪 / ❓ 查无实据,主会话逐条带证据);**C2** 第二类实验经一次 multiSelect 批准后执行(临时文件落 `.xcheck/<ts>/exp/` 留底;禁改业务代码 / 禁联网 / 禁部署);**C3** 汇成必改清单(证实+实验成立=必改,证伪=明确排除,未决=用户逐条拍板);**C4** 主会话亲写修订版,只写**新文件** `<原名>.rev<m>.md` + diff,原稿不动;**C5** 每轮问用户要不要复审,硬上限 2 轮修订,第 1+2 类清零=收敛,否则报"建议推倒重来"。过程写 `CLOSE.md`(阶段粒度追加、可断点续跑),SUMMARY 只在闭环结束时加一行 closed 标记。评审第 4 步新增落 `run.md`(mode/SELECTED/ts/prompt/source)供闭环定位复审 agent 集;6.5 收尾加 `/xcheck-close` 引导句。设计见 `docs/superpowers/specs/2026-08-14-xcheck-close-loop-design.md`。
+
+### Changed / 改进
+
+- **Intake hardening.** The "scheme-type reference" exception (e.g. `评审刚才的方案` after a design discussion) used to solidify the proposal and fan out **unguarded** — no user confirmation, and user-stated facts/constraints from the discussion were dropped. Now solidification is three-step: neutral-statement proposal + verbatim user-fact extraction, both shown to the user for approval (never fan out before approval), facts going to `{{CONTEXT}}` separately from `{{PROPOSAL}}`. Self-contained inputs (pasted spec / file path) now also get a **zero-roundtrip** background pass: the main session silently pulls directly-related user verbatim from recent conversation into `{{CONTEXT}}`, says so in one visible line (no popup), nothing added if nothing found. The verbatim-not-summary iron rule is unchanged.
+- **摄入强化。** "方案型指代"例外(设计讨论后敲"评审刚才的方案")此前固化 proposal 后**裸奔** fan-out——无用户确认关卡,讨论中用户陈述的事实/约束也全丢。现固化为三步:中性陈述 proposal + 用户原话事实摘录,两者一并呈现用户过目(通过前绝不 fan-out),事实单独走 `{{CONTEXT}}`、与 `{{PROPOSAL}}` 分槽。自包含输入(贴 spec / 文件路径)也补**零往返**背景扫描:主会话静默摘最近对话里直接相关的用户原话填 `{{CONTEXT}}`,对话里明说一句(不弹窗),没摘到就不加。"摘录≠总结"铁律不变。
+
 ## [0.8.0] - 2026-08-14
 
 ### Fixed / 修复
