@@ -3,8 +3,10 @@
 # To add a new agent you installed: add an [agents.<name>] block below and run
 #   /xcheck-setup   (or just re-run lib/detect.sh to confirm detection).
 #
-# 超时配置: xcheck 调用 agent 时给 shell 套的 `timeout <sec>` 上限(只影响 xcheck,
-# 不影响 agent 自己单独跑)。优先级: per-agent timeout_sec  > [defaults].timeout_sec。
+# 超时配置: xcheck 调用 agent 时给的总执行时限。注意: 这个值由搬运工通过
+# 「后台启动 + 轮询」兑现(见 lib/subagent-carrier.md 第 1 步) —— 不能用一次前台
+# Bash 调用直等,前台上限 600s,超时即掐断且孤儿进程输出会永久丢失(2026-08-14 codex 事故)。
+# 优先级: per-agent timeout_sec  > [defaults].timeout_sec。
 # 用 /xcheck-setup timeout [N|<agent> N] 查看/设置。
 #
 # 默认 agent 集: 设了之后 /xcheck 直接拿这组跑,跳过每次勾选。
@@ -14,42 +16,42 @@
 
 [defaults]
 # 所有 agent 的默认最大执行秒数。per-agent timeout_sec 覆盖此值。
-timeout_sec = 1800
+timeout_sec = 2700
 # 默认 agent 集(可选)。设了 /xcheck 就跳过每次勾选直接用这组。
 # 出厂不设(注释掉);要用就取消注释、填名字。详见顶部说明。
-# default_agents = ["claude", "codex", "kimi"]
+default_agents = ["codex", "kimi", "opencode", "pi"]
 
 [agents.claude]
 installed_check = "claude"
 run_cmd         = "claude -p"      # prompt passed as one quoted arg
 input_mode      = "arg"
 needs_timeout   = false
-timeout_sec     = 1800
+timeout_sec     = 2700
 
 [agents.codex]
 installed_check = "codex"
 run_cmd         = "codex exec -"   # reads prompt from stdin
 input_mode      = "stdin"
 needs_timeout   = false
-timeout_sec     = 1800
+timeout_sec     = 2700
 
 [agents.opencode]
 installed_check = "opencode"
 run_cmd         = "opencode run"   # no --format json: default formatted text (Task 1 decision)
 input_mode      = "arg"
 needs_timeout   = true             # known to hang on input occasionally -> force timeout
-timeout_sec     = 1800
+timeout_sec     = 2700
 
 [agents.pi]
 installed_check = "pi"
 run_cmd         = "pi -p"          # non-interactive print mode; prompt passed as trailing message arg
 input_mode      = "arg"
 needs_timeout   = false
-timeout_sec     = 1800
+timeout_sec     = 2700
 
 [agents.kimi]
 installed_check = "kimi"
 run_cmd         = "kimi -p"         # non-interactive print mode; prompt passed as single arg (Kimi Code CLI)
 input_mode      = "arg"
 needs_timeout   = false
-timeout_sec     = 1800
+timeout_sec     = 2700

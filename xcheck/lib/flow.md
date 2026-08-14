@@ -90,7 +90,7 @@ bash ~/.claude/skills/xcheck/lib/detect.sh
 读 `~/.claude/skills/xcheck/agents.toml`,对 SELECTED 里每个 agent 取出:
 - `run_cmd`(如 `codex exec -`、`opencode run`、`claude -p`)—— **不含 prompt**;
 - `input_mode`(`arg` 或 `stdin`);
-- `needs_timeout` / `timeout_sec`(per-agent 优先;否则取 `agents.toml` 顶部 `[defaults].timeout_sec`,默认 480;`/xcheck-setup timeout` 可查改)。
+- `needs_timeout` / `timeout_sec`(per-agent 优先;否则取 `agents.toml` 顶部 `[defaults].timeout_sec`;`/xcheck-setup timeout` 可查改)。
 
 ### 3.4 一条消息里并发派 |SELECTED| 个 subagent(关键)
 
@@ -103,11 +103,12 @@ AGENT_NAME = <name>
 CLI_CMD = <run_cmd>
 INPUT_MODE = <arg | stdin>
 PROMPT_FILE = <cwd>/.xcheck/<ts>/prompt.txt
-TIMEOUT = <timeout_sec;per-agent 优先,否则取 [defaults].timeout_sec(480)>
+TIMEOUT = <timeout_sec;per-agent 优先,否则取 [defaults].timeout_sec>
 RESULT_SHAPE = <diag 结构 | review 结构>   # 由本 skill 的 mode 决定
 ```
 
 - **subagent 模型用便宜档(haiku 或 sonnet)** —— 它只是搬运工,不需要重模型。
+- **搬运工必须按 carrier 文档第 1 步的「后台启动 + 轮询」方式执行** —— `timeout_sec`/TIMEOUT 是**总时限**,经后台轮询兑现;绝不允许前台 Bash 直等(前台上限 600s,长评审会被掐断且孤儿进程的输出会永久丢失,见 carrier 文档第 1 步的事故注记)。
 - RESULT_SHAPE:
   - diag 模式 → `diag 结构(根因/证据/置信度/建议)`
   - review 模式 → `review 结构(裁决/逐条问题/理由)`

@@ -13,7 +13,7 @@ args = "$ARGUMENTS"。分两种模式:
 
 1. 跑检测:`bash ~/.claude/skills/xcheck/lib/detect.sh`
    - stdout 里的 agent = 已安装。stderr 里的 = 已登记但没装。
-2. 对每个**已安装**的 agent,读 `~/.claude/skills/xcheck/agents.toml` 拿到它的 `run_cmd` / `input_mode` / `needs_timeout` / `timeout_sec`(默认 480)。
+2. 对每个**已安装**的 agent,读 `~/.claude/skills/xcheck/agents.toml` 拿到它的 `run_cmd` / `input_mode` / `needs_timeout` / `timeout_sec`(per-agent 优先,缺省取 `[defaults].timeout_sec`)。
 3. 逐个**验证**:给该 agent 喂一句极小 prompt(用 Bash 调它的非交互命令):
    - 写一个临时文件 `/tmp/xcheck-verify-<agent>.txt`,内容:`Reply with exactly: hello-from-<agent>`
    - stdin 模式:`timeout <sec> bash -c '<run_cmd> < /tmp/xcheck-verify-<agent>.txt'`
@@ -41,18 +41,18 @@ args = "$ARGUMENTS"。分两种模式:
    - `run_cmd` —— 不含 prompt 的命令前缀(如 `gemini -p` / `qwen exec -`)
    - `input_mode` —— `arg`(prompt 作为单个 argv)或 `stdin`(prompt 管道喂入)
    - `needs_timeout` —— 历史上会卡输入的 CLI 写 `true`(参考 opencode)
-   - `timeout_sec` —— 显式填(默认 480;也可登记后用模式 C `/xcheck-setup timeout <name> <秒>` 改)。所有 agent 都带 `timeout` 笼子,与 needs_timeout 无关(needs_timeout=true 只是标记"历史会卡"的提示)。
+   - `timeout_sec` —— 显式填(不填则落 `[defaults].timeout_sec`;也可登记后用模式 C `/xcheck-setup timeout <name> <秒>` 改)。所有 agent 都带 `timeout` 笼子,与 needs_timeout 无关(needs_timeout=true 只是标记"历史会卡"的提示)。
 4. 把新 `[agents.<name>]` 块**追加**写进 `~/.claude/skills/xcheck/agents.toml`(用 Edit,别覆盖整个文件)。
 5. 立刻按模式 A 验证这个新 agent 能跑通(写 `/tmp/xcheck-verify-<name>.txt`、跑它的 run_cmd、看 marker `hello-from-<name>` 是否出现)。✅ 才算登记成功;否则回退 agents.toml 的修改并报告失败原因。
 
 ## 模式 C:`timeout [...]` → 查看 / 设置 agent 最大执行秒数
 
-xcheck 调用 agent 时给 shell 套的 `timeout <sec>` 上限。**只影响 xcheck,不影响 agent 自己单独跑。** 优先级: per-agent `timeout_sec` > `[defaults].timeout_sec`(默认 480)。
+xcheck 调用 agent 时给 shell 套的 `timeout <sec>` 上限。**只影响 xcheck,不影响 agent 自己单独跑。** 优先级: per-agent `timeout_sec` > `[defaults].timeout_sec`(出厂 2700,可改)。
 
 3 种调用:
 
 - **`/xcheck-setup timeout`**(无参)→ 读 `agents.toml`,打印当前 `[defaults].timeout_sec` + 每个 agent 的 `timeout_sec`,表格呈现。
-- **`/xcheck-setup timeout <N>`**(一个整数)→ 把 `[defaults].timeout_sec` 改成 N(影响所有"没单独配 per-agent timeout"的 agent;per-agent 显式值不受影响)。改前给一句确认提示(N<60 或 N>1800 时警告"异常区间,确认?")。
+- **`/xcheck-setup timeout <N>`**(一个整数)→ 把 `[defaults].timeout_sec` 改成 N(影响所有"没单独配 per-agent timeout"的 agent;per-agent 显式值不受影响)。改前给一句确认提示(N<60 或 N>3600 时警告"异常区间,确认?")。
 - **`/xcheck-setup timeout <agent> <N>`**(agent 名 + 整数)→ 把 `[agents.<agent>].timeout_sec` 改成 N(per-agent 覆盖)。agent 名必须在 agents.toml 里存在,否则报错并列出可用 agent。
 
 执行(主会话):

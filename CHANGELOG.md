@@ -5,6 +5,18 @@ All notable changes to `xcheck`. Format loosely follows [Keep a Changelog](https
 
 ## [Unreleased] / 未发布
 
+## [0.8.0] - 2026-08-14
+
+### Fixed / 修复
+
+- **Carrier runs external CLIs in background with full disk redirection (2026-08-14 codex incident).** A long review (45 min) launched via a single foreground Bash call was killed by the 600s tool limit while the CLI kept running as an orphaned Windows process — its conclusion went into a pipe nobody read and was lost permanently. `subagent-carrier.md` step 1 now mandates: launch with `run_in_background: true`, redirect stdout/stderr/exit-code to `<agent>.raw.stdout` / `.raw.stderr` / `.exitcode` files next to the prompt file, then poll via TaskOutput (blocking, ≤600s per wait) until the exit-code file appears or the total TIMEOUT elapses. `timeout_sec` semantics clarified: it is the **total execution budget** honored by the polling loop, not a single foreground wait. New step 7 adds last-resort recovery from agent-native session logs (codex rollout JSONL verified; kimi/opencode marked unverified). `flow.md` step 3.4 and the `agents.toml` header cross-reference the incident note. Defaults raised 1800→2700 across `[defaults]` and all five agents; every stale hardcoded "480" in `SKILL.md` / `flow.md` / carrier / xcheck-setup docs removed (they had already drifted from 1800), and the `/xcheck-setup timeout` sanity-warning range widened to N<60 / N>3600 so the new factory default no longer trips its own "abnormal range" warning.
+- **搬运工改为后台启动 + 全程落盘 + 轮询(2026-08-14 codex 事故)。** 长评审(45 分钟)此前用一次前台 Bash 调用直等,600 秒被 harness 掐断,CLI 作为孤儿进程继续跑完,结论写进没人读的管道、永久丢失。`subagent-carrier.md` 第 1 步改为:`run_in_background: true` 启动,stdout/stderr/退出码分别落盘到 prompt 同目录的 `<agent>.raw.stdout` / `.raw.stderr` / `.exitcode`,再用 TaskOutput 阻塞轮询(单次 ≤600s)直到退出码文件出现或总时限到。`timeout_sec` 语义明确为**总执行时限**,由轮询兑现,不是一次前台等待的秒数。新增第 7 步兜底:输出异常丢失时先从 agent 自带会话日志恢复(codex rollout JSONL 已验证;kimi/opencode 标注未验证)。`flow.md` 3.4 与 `agents.toml` 头注同步引用事故注记。默认超时 1800→2700(`[defaults]` + 五家 agent 全量);`SKILL.md` / `flow.md` / carrier / xcheck-setup 文档里所有写死的"480"清除(此前已与 1800 脱节),`/xcheck-setup timeout` 异常区间警告放宽为 N<60 / N>3600,出厂默认 2700 不再触发自己的"异常区间"警告。
+
+### Changed / 改进
+
+- **Factory default agent set enabled.** `agents.toml` `[defaults].default_agents = ["codex", "kimi", "opencode", "pi"]` — shipped uncommented, so `/xcheck` skips the per-run multi-select out of the box (claude excluded from the default reviewers; add it via `/xcheck-setup default` if wanted).
+- **出厂启用默认 agent 集。** `agents.toml` 的 `[defaults].default_agents = ["codex", "kimi", "opencode", "pi"]` 取消注释出厂即生效,`/xcheck` 开箱跳过每次勾选(默认评审组不含 claude;需要可 `/xcheck-setup default` 加回)。
+
 ## [0.7.0] - 2026-08-13
 
 ### Added / 新增

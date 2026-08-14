@@ -7,29 +7,41 @@
 - CLI_CMD = <该 agent 的 run_cmd,来自 agents.toml,不含 prompt>
 - INPUT_MODE = <arg | stdin>
 - PROMPT_FILE = <prompt 文件的绝对路径>
-- TIMEOUT = <秒;per-agent timeout_sec 优先,否则取 agents.toml 的 [defaults].timeout_sec(480);/xcheck-setup timeout 可查改>
+- TIMEOUT = <秒;per-agent timeout_sec 优先,否则取 agents.toml 的 [defaults].timeout_sec;/xcheck-setup timeout 可查改>
 - RESULT_SHAPE = <由 mode 决定,见第 4 步>
 
 ---
 
 ## 执行步骤
 
-### 1. 跑 CLI(按 INPUT_MODE)
+### 1. 跑 CLI(按 INPUT_MODE,**必须后台启动,严禁前台等待**)
 
-把 PROMPT_FILE 的内容喂进 CLI_CMD,整条用 `timeout` 裹住 + `bash -lc` 包住:
+> ⚠️ **为什么必须后台**:前台 Bash 工具调用上限 600 秒,而外部评审 CLI 可能跑 45 分钟。前台等 = 10 分钟时 harness 掐断你的 Bash 调用,而外部 CLI 在 Windows 上作为孤儿进程继续跑完,**把结论写进没人读的管道,永久丢失**(2026-08-14 codex 事故,已核实)。`TIMEOUT` 参数是**总时限**,通过下面的后台启动 + 轮询来兑现,不是一次前台调用的等待秒数。
 
-- **stdin** 模式:
-  ```
-  timeout <TIMEOUT> bash -lc '<CLI_CMD> < "<PROMPT_FILE>"'
-  ```
-- **arg** 模式:
-  ```
-  timeout <TIMEOUT> bash -lc '<CLI_CMD> "$(cat "<PROMPT_FILE>")"'
-  ```
+先定三个落盘路径(全部放 PROMPT_FILE 同目录):
 
-把 stdout 和 stderr 都收下来(分别记),并记下退出码。**一定要用 Bash 工具拿退出码**(例如 `... ; echo "EXIT=$?"`),光看输出文本判断成败是错的。
+- `OUT  = <PROMPT_FILE 所在目录>/<AGENT_NAME>.raw.stdout`
+- `ERRF = <PROMPT_FILE 所在目录>/<AGENT_NAME>.raw.stderr`
+- `CODE = <PROMPT_FILE 所在目录>/<AGENT_NAME>.exitcode`
 
-### 2. 按**退出码**判定成败 —— 不要扫输出文本找 error 字样!
+按 INPUT_MODE 构造命令(stdin 模式把 `<` 喂 prompt;arg 模式用 `"$(cat ...)"`),整条这样裹(**输出重定向到文件是关键——全程落盘,丢不了**):
+
+```
+timeout <TIMEOUT> bash -lc '<CLI_CMD> < "<PROMPT_FILE>" > "<OUT>" 2> "<ERRF>"; echo $? > "<CODE>"'
+```
+
+用 **Bash 工具的 `run_in_background: true` 参数**启动它,记下返回的 shell/task id。启动那一刻另记一个开始时间(可用 `date +%s` 单独短调用拿)。
+
+### 1.5 轮询等待(直到 CODE 文件出现或总时限到)
+
+反复用 **TaskOutput / BashOutput**(block=true,timeout ≤ 600000)等那个后台任务;每次醒来后用一个短前台 Bash 调用检查 `test -f "<CODE>"`:
+
+- **CODE 文件出现** → 进第 2 步,退出码 = `cat "<CODE>"`(唯一权威)。
+- **累计等待 ≥ TIMEOUT 秒仍未出现** → 停掉后台任务(如有 KillShell/TaskStop 就调),按超时处理(第 2 步的 exit 124 分支)。此时 OUT 文件里的部分输出照样可用,一并无损带回。
+
+严禁用「sleep 300 循环」烧轮询——每次检查之间交给 TaskOutput 阻塞等待,不要忙转。
+
+### 2. 按**退出码**(CODE 文件内容)判定成败 —— 不要扫输出文本找 error 字样!
 
 成败的唯一权威是**进程退出码**。不同 agent 的 stdout 长得很不一样,有的很吵,但只要 exit 0 就是成功。**不要因为输出里出现 "error" / "fatal" / "panic" 字样就当成失败** —— 那可能是非致命噪声(见下)。
 
@@ -42,7 +54,7 @@
 - **其它非零退出** → 只返回:
   `## <AGENT_NAME> 结构化结论`
   `<AGENT_NAME> 失败:exit=<码>,stderr 摘要:<末尾几行>`
-- **exit 0** → 成功。读全部 stdout,**忽略下面列出的已知噪声**,抽出该 agent 的真实结论(见第 3 步)。
+- **exit 0** → 成功。读 **OUT 文件**(`Read` 或 `tail`),**忽略下面列出的已知噪声**,抽出该 agent 的真实结论(见第 3 步)。stderr(ERRF)只在失败时才需要看。
 
 ### 3. 成功时(exit 0)—— 读 stdout,剥噪声,取结论
 
@@ -78,7 +90,7 @@ agent 没说某个字段就写 `(未提及)`,**不要**替它编。
 ```
 ## <AGENT_NAME> 原始输出
 
-<CLI 的完整 stdout;若过长可截断但必须含 reply 所在段;附一行元信息:exit=<码>,wall=<秒估算或 "timeout">>
+<OUT 文件内容;若过长可截断但必须含 reply 所在段;附一行元信息:exit=<CODE 文件内容>,wall=<秒估算或 "timeout">>
 
 ## <AGENT_NAME> 结构化结论
 
@@ -92,3 +104,13 @@ agent 没说某个字段就写 `(未提及)`,**不要**替它编。
 - 成败看**退出码**,不看输出文本里有没有 "error"。
 - codex 的 MCP/banner/hook 噪声 ≠ 失败。
 - 你不是综合者,主会话才是。
+
+### 7. 兜底恢复(仅当输出/退出码异常丢失时)
+
+若 OUT 文件为空、缺失或明显截断(例如进程被外部掐断、孤儿进程写进死管道),在判"失败"之前先试 agent 自己的会话日志——CLI 通常把完整对话(含最终结论)落盘在别处:
+
+- **codex**:rollout 日志在 `~/.codex/sessions/<YYYY>/<MM>/<DD>/rollout-*.jsonl`(按 mtime 取最新一个)。用 python 提取最后一条 `event_msg` 里 `payload.type == "agent_message"` 的 `message` 字段(注意 Windows 控制台是 GBK,写文件用 UTF-8,别直接 print 中文)。有 `task_complete` 事件 = 该会话其实正常结束,结论以 rollout 为准,并在报告里注明「stdout 丢失,结论自 rollout 恢复」。
+- **kimi**:stdout 尾部若出现 `To resume this session: <id>`,说明会话已落盘,但结论恢复路径未验证——如实报告 stdout 丢失即可。
+- **opencode / 其它**:未验证恢复路径,如实报告。
+
+恢复出的结论照常进「结构化结论」段,并**如实标注恢复来源**;恢复不到才判失败。
