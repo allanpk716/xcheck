@@ -8,7 +8,7 @@
 
 当 `$ARGUMENTS` 是指代性 / 简短输入(如"诊断刚才那个")、**不自包含**时,先按 `~/.claude/skills/xcheck/lib/context-intake.md` 执行摄入:切最近对话 → 派摘录 subagent(haiku)摘客观事实 → 用户逐条确认 → 用确认后的事实清单作为 `{{USER_INPUT}}`(diag)/ `{{PROPOSAL}}`(review)。
 
-- **自包含输入**(完整报错栈 / 设计文档 / 文件路径)→ **跳过**摄入,直接用 `$ARGUMENTS`,进第 1 步。
+- **自包含输入**(完整报错栈 / 设计文档 / 文件路径)→ **跳过**摄入,直接用 `$ARGUMENTS`,进第 1 步。但跳过摄入 ≠ 不带背景:主会话仍**零往返静默扫**最近对话,摘与输入直接相关的用户原话填 `{{CONTEXT}}`(见 `lib/context-intake.md` 第 0.6 步),并在对话里明说一句;没摘到就不填。
 - 摄入若运行,已创建 `<cwd>/.xcheck/<ts>/` 目录 → **第 3.2 步复用这个 `<ts>`,不要重复建**。
 - 触发判定 / 摘录 subagent / 逐条确认 / 退回反问 / 填槽的细节全在 `lib/context-intake.md`。
 
@@ -125,6 +125,18 @@ RESULT_SHAPE = <diag 结构 | review 结构>   # 由本 skill 的 mode 决定
 
 **不要** 在这一步做综合判断。综合在第 5 步。
 
+**落 run.md(闭环元数据)**:本步最后把本次运行元数据写到 `<cwd>/.xcheck/<ts>/run.md`(供 `/xcheck-close` 定位复审 agent 集与判 mode),一行一个字段:
+
+```
+mode = review            # diag | review
+ts = <ts>
+selected = codex, kimi, opencode   # 本次 SELECTED,逗号分隔小写名
+prompt = <cwd>/.xcheck/<ts>/prompt.txt
+source = <原方案的文件绝对路径 | inline>
+```
+
+`source` 判定:第 3.1 步时 `$ARGUMENTS`(或摄入产物)是文件路径 → 记该路径;是用户贴文/固化文本 → 记 `inline`。
+
 ## 第 5 步:主会话汇总(你做综合判断)
 
 把所有 subagent 带回的**结构化结论**拼起来(`.xcheck/<ts>/<name>.summary.md` 的内容,逐个 agent 一段),填进汇总指令模板:
@@ -179,6 +191,12 @@ RESULT_SHAPE = <diag 结构 | review 结构>   # 由本 skill 的 mode 决定
 ### 6.5 收尾
 
 第 6 步**不**单独再喊"你拍板"——第 5 步结尾那句"共识≠正确,你拍板"已覆盖整个 SUMMARY。第 6 步只是给那段话补"可信度依据"。呈现给用户即结束。
+
+**mode=review 时**,呈现完再追加一句(原样输出):
+
+> **要闭环处置这些反馈(逐条证实 / 执行实验 / 修订方案 / 复审)→ 敲 `/xcheck-close`。**
+
+diag 模式**不加**这句(diag 闭环暂不支持,别引导)。
 
 ---
 
