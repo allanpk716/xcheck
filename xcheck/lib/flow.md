@@ -25,6 +25,15 @@ bash ~/.claude/skills/xcheck/lib/detect.sh
   - **若已装 < 2 个**:告诉用户装的太少(异构至少要 2 个、且至少 1 个非 claude),建议先 `/xcheck-setup` 核实,然后**停**,不继续。不要硬跑单 agent。
 - **记 `INSTALLED`** = stdout 里所有已装 agent 的名字列表(小写,与 agents.toml key 一致),供第 2 步取交集用。
 
+## 第 1.5 步:冒烟预检(SELECTED 定下后、fan-out 前,每家 ≤60 秒)
+
+对 SELECTED 里每家跑一条平凡小 prompt(如 `timeout 60 <CLI_CMD> "只回复一个字:好"`),**主会话前台直接跑**,看退出码:
+
+- **exit 0** → 该家可用,进第 3 步。
+- **非零退出**(401 欠费、未登录、CLI 损坏、权限拒绝…) → 该家剔除,告知用户"X 家预检失败:<stderr 摘要>,本轮跳过",落 `<name>.failed.md`,其余家继续。剔除后若剩 < 2 家,按第 1 步同款话术停下。
+
+> 为什么必须预检:2026-08-15 实证,pi 账户欠费 401 直到 fan-out 后搬运工失败才暴露,整轮浪费;预检每家只花几秒就能拦下。预检对 codex 也顺带验证了 `--skip-git-repo-check` flag(见 agents.toml)。
+
 ## 第 2 步:定 SELECTED(默认集 / --agents / 多选 三分支)
 
 先定**候选集 CANDIDATES**(优先级从高到低):
@@ -81,7 +90,7 @@ bash ~/.claude/skills/xcheck/lib/detect.sh
 
 复用第 0 步摄入时已建的时间戳目录 `.xcheck/<ts>/`;**若第 0 步跳过了摄入**(自包含输入),则在此生成 `<YYYYMMDD-HHMMSS>/`(本地时间,例 `20260809-143012`)。把上一步填好的最终 prompt 写到:
 ```
-<cwd>/.xcheck/<ts>/prompt.txt   # 用绝对路径
+<cwd>/.xcheck/<ts>/prompt.txt   # 用绝对路径;Windows 下一律写正斜杠 C:/... 形式
 ```
 (`.xcheck/` 已在 .gitignore 里,不会污染仓库。)
 
@@ -102,7 +111,7 @@ bash ~/.claude/skills/xcheck/lib/detect.sh
 AGENT_NAME = <name>
 CLI_CMD = <run_cmd>
 INPUT_MODE = <arg | stdin>
-PROMPT_FILE = <cwd>/.xcheck/<ts>/prompt.txt
+PROMPT_FILE = <cwd>/.xcheck/<ts>/prompt.txt   # Windows 下传正斜杠 C:/... 形式(见 carrier 第 0 步)
 TIMEOUT = <timeout_sec;per-agent 优先,否则取 [defaults].timeout_sec>
 RESULT_SHAPE = <diag 结构 | review 结构>   # 由本 skill 的 mode 决定
 ```

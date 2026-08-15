@@ -12,6 +12,16 @@
 
 ---
 
+## 第 0 步:路径规范化 + 预检 + 清残留(跑 CLI 之前,必做)
+
+2026-08-15 实测三连败的根因都在这一步缺失,别跳过:
+
+1. **路径一律转正斜杠**。PROMPT_FILE 及派生的 OUT/ERRF/CODE 全部写成 `C:/Users/.../prompt.txt` 形式(把 `\` 换成 `/`)。Windows 反斜杠路径在 Git Bash 的 `$(cat ...)` 和部分重定向里会**静默读空**——实证:kimi 报 `Prompt cannot be empty`、opencode 报 `You must provide a message or a command`,两家都被喂了空 prompt。
+2. **预检 prompt 可读**:`wc -c <PROMPT_FILE>`。读不到或 0 字节 → **停**,直接按失败返回(说明 cat 不到文件),严禁带着空 prompt 去 CLI 空跑。
+3. **清残留**:`rm -f <OUT> <ERRF> <CODE>`。失败重跑/多轮重试会复用同名文件——上一轮的 stale `exitcode` 会让本轮成败误判(实证:进程还在跑,主会话却读到旧的 exit=1)。
+
+---
+
 ## 执行步骤
 
 ### 1. 跑 CLI(按 INPUT_MODE,**必须后台启动,严禁前台等待**)
@@ -24,7 +34,7 @@
 - `ERRF = <PROMPT_FILE 所在目录>/<AGENT_NAME>.raw.stderr`
 - `CODE = <PROMPT_FILE 所在目录>/<AGENT_NAME>.exitcode`
 
-按 INPUT_MODE 构造命令(stdin 模式把 `<` 喂 prompt;arg 模式用 `"$(cat ...)"`),整条这样裹(**输出重定向到文件是关键——全程落盘,丢不了**):
+按 INPUT_MODE 构造命令(stdin 模式把 `<` 喂 prompt;arg 模式用 `"$(cat ...)"`),整条这样裹(**路径用第 0 步规范化后的正斜杠形式代入;输出重定向到文件是关键——全程落盘,丢不了**):
 
 ```
 timeout <TIMEOUT> bash -lc '<CLI_CMD> < "<PROMPT_FILE>" > "<OUT>" 2> "<ERRF>"; echo $? > "<CODE>"'
@@ -38,6 +48,7 @@ timeout <TIMEOUT> bash -lc '<CLI_CMD> < "<PROMPT_FILE>" > "<OUT>" 2> "<ERRF>"; e
 
 - **CODE 文件出现** → 进第 2 步,退出码 = `cat "<CODE>"`(唯一权威)。
 - **累计等待 ≥ TIMEOUT 秒仍未出现** → 停掉后台任务(如有 KillShell/TaskStop 就调),按超时处理(第 2 步的 exit 124 分支)。此时 OUT 文件里的部分输出照样可用,一并无损带回。
+- **挂起检测(needs_timeout 类 agent 尤其注意)**:若 OUT+ERRF 的大小/mtime **连续 ~10 分钟零增长**且进程仍在 → 判挂起,kill 后按超时处理。实证(2026-08-15):opencode 活跃输出 19 分钟后冻结,傻等 timeout_sec=2700 会白耗半小时。
 
 严禁用「sleep 300 循环」烧轮询——每次检查之间交给 TaskOutput 阻塞等待,不要忙转。
 
@@ -54,17 +65,17 @@ timeout <TIMEOUT> bash -lc '<CLI_CMD> < "<PROMPT_FILE>" > "<OUT>" 2> "<ERRF>"; e
 - **其它非零退出** → 只返回:
   `## <AGENT_NAME> 结构化结论`
   `<AGENT_NAME> 失败:exit=<码>,stderr 摘要:<末尾几行>`
-- **exit 0** → 成功。读 **OUT 文件**(`Read` 或 `tail`),**忽略下面列出的已知噪声**,抽出该 agent 的真实结论(见第 3 步)。stderr(ERRF)只在失败时才需要看。
+- **exit 0** → 成功。结论**先看 OUT 文件(stdout)**;若 OUT 为空或不含实质 reply(见下),**再看 ERRF(stderr)——codex 的完整会话日志(含最终结论)可能整个落在 stderr,stdout 0 字节**(2026-08-15 实证)。取两者中有实质内容的那份。stderr 里也没有才进第 7 步兜底。
 
 ### 3. 成功时(exit 0)—— 读 stdout,剥噪声,取结论
 
 不同 agent 的 stdout 形态不同。**这些都是 exit 0 的正常输出,不是错误**:
 
 - **claude**:stdout 整段就是 reply,干净,无 banner。
-- **codex**:stdout 很吵 —— 启动 banner(`OpenAI Codex v...` / workdir / model / approval / sandbox / session id)、`hook: SessionStart` / `hook: UserPromptSubmit` / `hook: Stop` 生命周期行、可能反复出现的非致命 MCP 传输错误 `rmcp::transport::worker ... 127.0.0.1:12358/va/mcp`、`codex` 角色标签、最后的 `tokens used` 摘要。
+- **codex**:输出很吵 —— 启动 banner(`OpenAI Codex v...` / workdir / model / approval / sandbox / session id)、`hook: SessionStart` / `hook: UserPromptSubmit` / `hook: Stop` 生命周期行、可能反复出现的非致命 MCP 传输错误 `rmcp::transport::worker ... 127.0.0.1:12358/va/mcp`、`codex` 角色标签、最后的 `tokens used` 摘要。
   - **这些 MCP / banner / hook 行都不是失败**(exit 仍是 0)。
-  - **codex 的真实诊断结论** = `hook: Stop` 前一段带 `codex` 角色标签的正文;为了稳妥,**取 stdout 最后一个非空行往前的整段 prose 作为 reply**(codex 会把 reply 在最末尾再回显一遍)。如果你不确定哪段是 reply,就取最末那个非空行向前直到上一个明显边界(角色标签/banner)之间的内容。
-  - codex 经常会输出 markdown,正文里可能就有 `根因:` `证据:` `置信度:` 这样的字段 —— 直接用。
+  - **codex 的真实结论** = `hook: Stop` 前一段带 `codex` 角色标签的正文;为了稳妥,**取 stdout 最后一个非空行往前的整段 prose 作为 reply**(codex 会把 reply 在最末尾再回显一遍)。**stdout 为空时**,结论在 **stderr**:同样取 `hook: Stop` 行之前、最后一个 `codex` 角色标签之后的整段正文(2026-08-15 实测 stdout 0 字节、结论完整落在 stderr)。
+  - codex 经常会输出 markdown,正文里可能就有 `根因:` `证据:` `置信度:` `裁决:` 这样的字段 —— 直接用。
 - **opencode**:stdout 开头是 ANSI 色码 + 一行 profile banner(`> build · glm-5.2`),空行,然后是 reply。reply 是**最后一个非空 stdout 段**(可能是多行)。ANSI 转义不用洗,你读得懂。
 - **kimi**:stdout 以一个 `• ` 前缀的 bullet 开头,然后是 reply。无 banner、无 ANSI、无生命周期噪声 —— 比 codex/opencode 都干净。reply 是 `• ` 之后的内容(可能多行)。
 
@@ -90,7 +101,7 @@ agent 没说某个字段就写 `(未提及)`,**不要**替它编。
 ```
 ## <AGENT_NAME> 原始输出
 
-<OUT 文件内容;若过长可截断但必须含 reply 所在段;附一行元信息:exit=<CODE 文件内容>,wall=<秒估算或 "timeout">>
+<OUT 文件内容;若结论实际取自 ERRF(stderr),则附 ERRF 的 reply 所在段并注明"结论取自 stderr";过长可截断但必须含 reply 所在段;附一行元信息:exit=<CODE 文件内容>,wall=<秒估算或 "timeout">>
 
 ## <AGENT_NAME> 结构化结论
 
