@@ -5,3 +5,7 @@
 # OS junk
 Thumbs.db
 desktop.ini
+# CodeGraph 索引（本机生成，不入库）
+.codegraph/
+# 空占位文件
+**/PLACEHOLDER
