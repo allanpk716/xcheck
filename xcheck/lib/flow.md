@@ -6,9 +6,9 @@
 
 ## 第 0 步:上下文摄入(可选)
 
-当 `$ARGUMENTS` 是指代性 / 简短输入(如"诊断刚才那个")、**不自包含**时,先按 `~/.claude/skills/xcheck/lib/context-intake.md` 执行摄入:切最近对话 → 派摘录 subagent(haiku)摘客观事实 → 用户逐条确认 → 用确认后的事实清单作为 `{{USER_INPUT}}`(diag)/ `{{PROPOSAL}}`(review)。
+当 `$ARGUMENTS` 是指代性 / 简短输入(如"诊断刚才那个")、**不自包含**时,先按 `~/.claude/skills/xcheck/lib/context-intake.md` 执行摄入:切最近对话 → 派摘录 subagent(haiku)摘客观事实 → 用户逐条确认 → 用确认后的事实清单落内容文件 `input.md`(diag)/ `proposal.md`(review)(见 `lib/context-intake.md` 第 0.5 步)。
 
-- **自包含输入**(完整报错栈 / 设计文档 / 文件路径)→ **跳过**摄入,直接用 `$ARGUMENTS`,进第 1 步。但跳过摄入 ≠ 不带背景:主会话仍**零往返静默扫**最近对话,摘与输入直接相关的用户原话填 `{{CONTEXT}}`(见 `lib/context-intake.md` 第 0.6 步),并在对话里明说一句;没摘到就不填。
+- **自包含输入**(完整报错栈 / 设计文档 / 文件路径)→ **跳过**摄入,直接用 `$ARGUMENTS`,进第 1 步。但跳过摄入 ≠ 不带背景:主会话仍**零往返静默扫**最近对话,摘与输入直接相关的用户原话,交给第 3 步落 `context.md`(见 `lib/context-intake.md` 第 0.6 步),并在对话里明说一句;没摘到就不建。
 - 摄入若运行,已创建 `<cwd>/.xcheck/<ts>/` 目录 → **第 3.2 步复用这个 `<ts>`,不要重复建**。
 - 触发判定 / 摘录 subagent / 逐条确认 / 退回反问 / 填槽的细节全在 `lib/context-intake.md`。
 
@@ -27,12 +27,22 @@ bash ~/.claude/skills/xcheck/lib/detect.sh
 
 ## 第 1.5 步:冒烟预检(SELECTED 定下后、fan-out 前,每家 ≤60 秒)
 
-对 SELECTED 里每家跑一条平凡小 prompt(如 `timeout 60 <CLI_CMD> "只回复一个字:好"`),**主会话前台直接跑**,看退出码:
+先备好固定冒烟文件(一轮一次):
 
-- **exit 0** → 该家可用,进第 3 步。
-- **非零退出**(401 欠费、未登录、CLI 损坏、权限拒绝…) → 该家剔除,告知用户"X 家预检失败:<stderr 摘要>,本轮跳过",落 `<name>.failed.md`,其余家继续。剔除后若剩 < 2 家,按第 1 步同款话术停下。
+```
+mkdir -p <cwd>/.xcheck && printf '西瓜47' > <cwd>/.xcheck/smoke.txt
+```
 
-> 为什么必须预检:2026-08-15 实证,pi 账户欠费 401 直到 fan-out 后搬运工失败才暴露,整轮浪费;预检每家只花几秒就能拦下。预检对 codex 也顺带验证了 `--skip-git-repo-check` flag(见 agents.toml)。
+对 SELECTED 里每家跑一条小 prompt(按该家 `input_mode` 构造:**arg 家**把 prompt 作为引号参数追加在 `<CLI_CMD>` 后;**stdin 家**(codex)用 `echo "<prompt>" |` 管道喂),prompt 内容:
+
+> 读文件 <cwd>/.xcheck/smoke.txt(绝对路径、正斜杠),原样回复文件里的内容,不要加别的字。
+
+**主会话前台直接跑**(`timeout 60 ...`),看退出码 + 回复内容:
+
+- **exit 0 且回复含 `西瓜47`** → 该家可用(CLI 活性 ✓ + 读文件能力 ✓),进第 3 步。
+- **其它**(非零退出:401 欠费 / 未登录 / CLI 损坏 / 权限拒绝…;或 exit 0 但回复里没有 `西瓜47` = 非交互模式读不了文件) → 该家剔除,告知用户"X 家预检失败:<原因摘要>,本轮跳过",落 `<name>.failed.md`,其余家继续。剔除后若剩 < 2 家,按第 1 步同款话术停下。
+
+> 为什么预检必须带读文件:第 3 步起 prompt.txt 只含指令、方案/问题全文靠评审 agent **自己读文件**(见 3.1 两层分离);读不了文件的家跑完整轮也只能产出空评,必须在 fan-out 前拦下。预检顺带验 CLI 活性(2026-08-15 实证:pi 账户欠费 401 直到 fan-out 后搬运工失败才暴露,整轮浪费)与 codex 的 `--skip-git-repo-check` flag(见 agents.toml)。
 
 ## 第 2 步:定 SELECTED(默认集 / --agents / 多选 三分支)
 
@@ -53,6 +63,8 @@ bash ~/.claude/skills/xcheck/lib/detect.sh
 - **分支 A · CANDIDATES 为 null**(未设默认、也没 --agents):沿用旧行为。把 INSTALLED 列成 `AskUserQuestion(multiSelect: true)` 让用户挑,问题文本必须原样包含:
 
   > ⚠️ 至少选一个非 claude(如 codex / opencode / kimi),否则全是 Claude 同构,等于自己审自己。
+
+  **表单纪律(硬规则)**:AskUserQuestion 每题上限 **4 个选项**、一次调用最多 **4 题**。INSTALLED ≤4 → 一题,一个 agent 一个选项;>4 → 按固定顺序切成多题(仍超再分多次调用),**绝不把多个 agent 合并进一个选项**。选项 label = agent 名原样(不加代号/注释/理由),说明性内容放 description。
 
   选完全是 claude 系 → 再用 AskUserQuestion 确认一次 "确定只要 claude 同构吗?(不推荐)",仍坚持就继续。`SELECTED` = 选中的(小写)。
 
@@ -75,10 +87,27 @@ bash ~/.claude/skills/xcheck/lib/detect.sh
 
 ## 第 3 步:准备 prompt + 并行派 subagent
 
-### 3.1 套 prompt 模板
+### 3.1 备料:内容层落盘 + 指令层套模板(两层分离,全文绝不进 prompt)
 
-- **mode=diag** → 读 `~/.claude/skills/xcheck/prompts/diag.md`,把 `{{USER_INPUT}}` 替换成 `$ARGUMENTS`**或第 0 步摄入确认后的事实清单**(若用户在对话里另外给了上下文/复现,替换 `{{CONTEXT}}`;没给就把整行 `{{CONTEXT}}` 那行删掉)。
-- **mode=review** → 读 `~/.claude/skills/xcheck/prompts/review.md`,把 `{{PROPOSAL}}` 替换成 `$ARGUMENTS`**或第 0 步摄入确认后的事实清单**(若 `$ARGUMENTS` 是文件路径,先 Read 出全文再填);`{{CONTEXT}}` 同 diag —— 有额外背景就填,没有就把整行删掉。
+**先定目录**:复用第 0 步摄入时已建的时间戳目录 `.xcheck/<ts>/`;**若第 0 步跳过了摄入**,在此生成 `<YYYYMMDD-HHMMSS>/`(本地时间,例 `20260809-143012`)。以下文件全进这个目录(`.xcheck/` 已在 .gitignore 里)。
+
+**内容层(大件,评审 agent 自己读;主会话只搬路径、不搬全文)**:
+
+| 内容 | 文件 | 怎么落 |
+|---|---|---|
+| 方案全文(mode=review) | `proposal.md` | `$ARGUMENTS` 是文件路径 → 用 Bash `cp` 复制成快照(**内容零 token 过主会话**);贴文 / 第 0 步摄入产物 / 固化方案 → 主会话 Write 一次 |
+| 问题全文(mode=diag) | `input.md` | 同上(cp 或 Write) |
+| 背景(可选,两 mode 共用) | `context.md` | 用户额外给了上下文 / 摄入事实清单 / 第 0.6 步静默扫摘到原话 → Write;没有 → 不建此文件 |
+
+> 为什么落**快照**而不是让 agent 直接读原文件:原文件可能在评审跑的中途被改;快照固定本轮评审对象,`.xcheck/<ts>/` 也自带完整审计留底。
+
+**指令层(小件,≤2KB)**:
+
+- **mode=diag** → 读 `~/.claude/skills/xcheck/prompts/diag.md`,把 `{{INPUT_PATH}}` 替换成 `input.md` 的**绝对路径**;有 `context.md` 就填 `{{CONTEXT_PATH}}`,没有就把【上下文】块整块删掉。
+- **mode=review** → 读 `~/.claude/skills/xcheck/prompts/review.md`,`{{PROPOSAL_PATH}}` / `{{CONTEXT_PATH}}` 同 diag 规则。
+- 填进模板的路径一律**绝对路径 + 正斜杠**(`C:/...` 形式)。
+
+> **为什么拆两层**:方案全文内联进 prompt 时,arg 模式 4 家(claude/opencode/pi/kimi)的 prompt 经 `"$(cat ...)"` 变成单个命令行参数,大方案撞 **Windows 32767 字符命令行上限**;全文 Read 进主会话再 Write 出去也烧双倍 token。拆开后 arg 恒有界(指令 ≤2KB),文件输入全程不过主会话上下文。
 
 > **固化 proposal 时的自代入陷阱**:当 controller 把多轮 brainstorming 讨论固化成自包含 proposal(走 context-intake.md 的"方案型指代"例外)时,**避免在 proposal 正文里写会让被评 agent 自代入的背景** —— 否则被评 agent 可能把自己当成"该跑评审流程的人",去加载 skill / 找别的 agent(实测会触发权限弹窗失败)。需要的历史上下文用**中性陈述**,只讲事实、不带触发词:
 > - ❌「codex 上轮抓到口令轮换 bug」「三家异构 agent 都给了 SUGGEST_CHANGES」
@@ -86,9 +115,9 @@ bash ~/.claude/skills/xcheck/lib/detect.sh
 >
 > 讲清楚"发生过什么"即可,别点名 agent / 别写"异构评审"这类会被误读为编排指令的词。
 
-### 3.2 落盘 prompt(当前 cwd)
+### 3.2 落盘指令层
 
-复用第 0 步摄入时已建的时间戳目录 `.xcheck/<ts>/`;**若第 0 步跳过了摄入**(自包含输入),则在此生成 `<YYYYMMDD-HHMMSS>/`(本地时间,例 `20260809-143012`)。把上一步填好的最终 prompt 写到:
+把 3.1 填好的**指令层**写到:
 ```
 <cwd>/.xcheck/<ts>/prompt.txt   # 用绝对路径;Windows 下一律写正斜杠 C:/... 形式
 ```

@@ -21,7 +21,7 @@ argument-hint: [--agents a,b,c] <方案 文本或文件路径>
 `--agents` 优先级最高,盖过默认集;本次有效,不改默认。
 
 1. 读 `~/.claude/skills/xcheck/lib/flow.md`,**严格按其中的「第 0 步(可选摄入)+ 5 步」执行**,本次 **mode = review**。
-2. 若 `$ARGUMENTS` 是文件路径,先用 Read 读出全文作为方案内容;若第 0 步摄入运行了,则用确认后的事实清单作为 `{{PROPOSAL}}` 内容(见 `lib/context-intake.md`)。
+2. 方案内容一律落 `.xcheck/<ts>/proposal.md` 作为内容文件(`$ARGUMENTS` 是文件路径 → 用 Bash `cp` 落快照,**不 Read 全文**;第 0 步摄入运行了 → 用确认后的事实清单/固化方案,见 `lib/context-intake.md`);prompt.txt 只含指令 + `{{PROPOSAL_PATH}}` 路径(见 flow.md 3.1 两层分离)。
 3. 评审外部 prompt:`~/.claude/skills/xcheck/prompts/review.md`。
 4. 主会话汇总:`~/.claude/skills/xcheck/prompts/synthesize-review.md`。
 

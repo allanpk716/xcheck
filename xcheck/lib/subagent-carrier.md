@@ -6,7 +6,7 @@
 - AGENT_NAME = <agent 名>
 - CLI_CMD = <该 agent 的 run_cmd,来自 agents.toml,不含 prompt>
 - INPUT_MODE = <arg | stdin>
-- PROMPT_FILE = <prompt 文件的绝对路径>
+- PROMPT_FILE = <prompt 文件的绝对路径>(prompt.txt 只含**指令层**:护栏 + 返回结构 + 内容文件的绝对路径。方案/问题全文在同目录的 `proposal.md` / `input.md` 里,由评审 agent 自己读 —— 搬运时不用管内容文件)
 - TIMEOUT = <秒;per-agent timeout_sec 优先,否则取 agents.toml 的 [defaults].timeout_sec;/xcheck-setup timeout 可查改>
 - RESULT_SHAPE = <由 mode 决定,见第 4 步>
 

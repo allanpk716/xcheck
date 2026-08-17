@@ -55,8 +55,8 @@ argument-hint: [--agents a,b,c] <问题描述或方案>
 
 分类清楚后,**直接交给共享流程**,你别自己造编排:
 
-- **mode=diag** → 按 `~/.claude/skills/xcheck/lib/flow.md` 的「第 0 步摄入(可选)+ 5 步」执行,本次 mode = diag;外部 prompt 用 `~/.claude/skills/xcheck/prompts/diag.md`(填 `{{USER_INPUT}}` = `$ARGUMENTS`,或第 0 步摄入确认后的事实清单),汇总模板用 `~/.claude/skills/xcheck/prompts/synthesize-diag.md`。
-- **mode=review** → 按 `~/.claude/skills/xcheck/lib/flow.md` 的「第 0 步摄入(可选)+ 5 步」执行,本次 mode = review;外部 prompt 用 `~/.claude/skills/xcheck/prompts/review.md`(若 `$ARGUMENTS` 是文件路径先 Read 出全文;或第 0 步摄入确认后的事实清单),汇总模板用 `~/.claude/skills/xcheck/prompts/synthesize-review.md`。
+- **mode=diag** → 按 `~/.claude/skills/xcheck/lib/flow.md` 的「第 0 步摄入(可选)+ 5 步」执行,本次 mode = diag;外部 prompt 用 `~/.claude/skills/xcheck/prompts/diag.md`(内容落 `.xcheck/<ts>/input.md`,prompt.txt 只填 `{{INPUT_PATH}}` 路径,见 flow 3.1 两层分离),汇总模板用 `~/.claude/skills/xcheck/prompts/synthesize-diag.md`。
+- **mode=review** → 按 `~/.claude/skills/xcheck/lib/flow.md` 的「第 0 步摄入(可选)+ 5 步」执行,本次 mode = review;外部 prompt 用 `~/.claude/skills/xcheck/prompts/review.md`(文件路径输入 `cp` 成 `.xcheck/<ts>/proposal.md` 快照、不 Read 全文;贴文/摄入产物 Write 落盘;prompt.txt 只填 `{{PROPOSAL_PATH}}` 路径,见 flow 3.1),汇总模板用 `~/.claude/skills/xcheck/prompts/synthesize-review.md`。
 
 > 无论 diag 还是 review:若本壳抠到了 `OVERRIDE_AGENTS`,转派 flow.md 时**带上**它(flow.md 第 2 步据此走候选集分支,不再看默认集)。
 
@@ -71,5 +71,5 @@ argument-hint: [--agents a,b,c] <问题描述或方案>
 - 派 subagent 用**便宜模型**(haiku 或 sonnet),**一条消息里并行**派出去。
 - **opencode / 任何 needs_timeout=true 的 agent 必须加 timeout**(默认读 `agents.toml` 的 `[defaults].timeout_sec`,per-agent `timeout_sec` 可覆盖;`/xcheck-setup timeout` 可查改)。
 - 成败判定看**退出码**,codex 的 MCP/banner/hook 噪声 ≠ 失败。
-- 结果全部落盘到 `<cwd>/.xcheck/<时间戳>/`(prompt.txt、`<agent>.raw.out`、`<agent>.summary.md`、SUMMARY.md);`.xcheck/` 已 gitignore,不要 commit。
+- 结果全部落盘到 `<cwd>/.xcheck/<时间戳>/`(prompt.txt、proposal.md/input.md(+context.md)、`<agent>.raw.out`、`<agent>.summary.md`、SUMMARY.md);`.xcheck/` 已 gitignore,不要 commit。
 - 最后**交用户拍板**,原样输出:"**以上是建议,共识 ≠ 正确,最终你拍板。**" 绝不自动改代码 / 自动合并 / 自动"通过"。
