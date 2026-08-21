@@ -19,7 +19,7 @@
 timeout_sec = 2700
 # 默认 agent 集(可选)。设了 /xcheck 就跳过每次勾选直接用这组。
 # 出厂不设(注释掉);要用就取消注释、填名字。详见顶部说明。
-default_agents = ["codex", "kimi", "opencode", "pi"]
+default_agents = ["codex", "kimi", "pi"]
 
 [agents.claude]
 installed_check = "claude"

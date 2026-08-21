@@ -3,6 +3,13 @@
 All notable changes to `xcheck`. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 本文件记录 xcheck 的所有显著变更。
 
+## [0.10.1] - 2026-08-21
+
+### Changed / 改进
+
+- **Factory default agent set 4→3: `opencode` removed from `default_agents`.** The factory `default_agents` line in `agents.toml` now ships `["codex", "kimi", "pi"]`; opencode keeps its `[agents.opencode]` entry and remains selectable/usable — it is just no longer in the default fan-out set. Also removed the stray nested `.git` directory under `xcheck/` (a leftover pointing at the same remote/HEAD as the outer repo; no unique commits, files were already tracked by the outer repo).
+- **出厂默认 agent 集 4→3:`default_agents` 移除 `opencode`。** `agents.toml` 出厂 `default_agents` 改为 `["codex", "kimi", "pi"]`;opencode 的 `[agents.opencode]` 定义保留,仍可勾选使用——只是不再进默认 fan-out 集。另删除 `xcheck/` 下残留的嵌套 `.git` 目录(指向与外层仓库相同的 remote/HEAD、无独有提交,文件本就由外层仓库跟踪)。
+
 ## [0.10.0] - 2026-08-17
 
 ### Fixed / 修复
