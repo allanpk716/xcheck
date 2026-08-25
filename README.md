@@ -47,16 +47,21 @@ you: /xcheck-review "docs/auth-design.md"      (or /xcheck-diag "why is this bro
         │
   [1]  detect ── lib/detect.sh (`which`) reads agents.toml → installed agents
         │
-  [1.5] smoke ── per candidate, ≤60s: read .xcheck/smoke.txt and echo it back.
+  [1.5] smoke ── per candidate, ≤60s via lib/run-agent.sh (the SAME mechanism as
+        │         real runs): read .xcheck/smoke.txt and echo it back.
         │         Dead CLI (401/未登录/损坏) or can't read files non-interactively
         │         → dropped before fan-out.
         │
   [2]  select ── --agents flag > default_agents (factory: codex,kimi,pi) >
         │       interactive multi-select (reminds you: pick ≥1 non-claude)
         │
-  [3]  fan out ── one cheap Claude subagent per agent, in parallel. Each launches
-        │         its CLI in the background with full disk redirection and polls
-        │         (total budget timeout_sec, factory 2700s; hang detection included).
+  [3]  fan out ── one cheap Claude subagent per agent, in parallel. Each just runs
+        │         `lib/run-agent.sh <agent> <prompt.txt>` in the background: the script
+        │         mechanizes command construction (arg/stdin), prompt precheck, stale
+        │         cleanup, forensic <agent>.cmd.txt, timeout + hang monitoring and
+        │         tree-kill — and the <agent>.exitcode file ALWAYS exists by script end
+        │         (0.11.0: replaced the carrier's hand-written shell, the source of
+        │         intermittent prompt-passing failures).
         │         Instruction layer: prompt.txt (≤2KB, paths only). Content layer:
         │         proposal.md / input.md / context.md — agents read files themselves.
         │
@@ -92,7 +97,7 @@ you: /xcheck-review "docs/auth-design.md"      (or /xcheck-diag "why is this bro
 - For xcheck to be **meaningful**, at least one must be non-`claude`.
 - A bash shell. Developed/tested on **Windows + Git Bash**; `detect.sh` is bash, so macOS/Linux should work too.
 
-Timeouts: every agent runs under a **total execution budget** (factory `2700`s, per-agent overridable) honored by a background-launch + polling carrier — a long review is never killed mid-flight by a foreground tool limit, and output is always on disk. View / change via `/xcheck-setup timeout`.
+Timeouts: every agent runs under a **total execution budget** (factory `2700`s, per-agent overridable) enforced by `lib/run-agent.sh` — a background supervisor that also detects hangs (zero output growth ~10 min) and tree-kills on expiry, so a long review is never killed mid-flight by a foreground tool limit and output is always on disk. View / change via `/xcheck-setup timeout`.
 
 ## Install
 
@@ -118,12 +123,14 @@ xcheck/
 │   ├── context-intake.md        # step-0 context intake / proposal solidification
 │   ├── close-flow.md            # /xcheck-close close-loop (C0–C5)
 │   ├── detect.sh                # detection: `which` over agents.toml
-│   ├── subagent-carrier.md      # the "carry, don't judge" subagent instructions (background launch + polling)
+│   ├── run-agent.sh             # agent execution supervisor: build/precheck/forensics/timeout/hang/kill (0.11.0)
+│   ├── subagent-carrier.md      # the "carry, don't judge" subagent instructions (calls run-agent.sh, judges nothing)
 │   └── extractor-carrier.md     # the fact-extraction subagent instructions
 └── prompts/
     ├── diag.md  review.md               # instruction templates fed to each external agent ({{PROPOSAL_PATH}} / {{INPUT_PATH}} / {{CONTEXT_PATH}})
     ├── synthesize-diag.md  synthesize-review.md   # main-session synthesis
     └── triage.md                        # three-tier feedback triage
+xcheck/tests/run-agent.test.sh   # stub regression suite for run-agent.sh (33 assertions, zero-dependency)
 xcheck-diag/SKILL.md             # thin shell → flow.md + diag.md
 xcheck-review/SKILL.md           # thin shell → flow.md + review.md
 xcheck-close/SKILL.md            # thin shell → close-flow.md
@@ -181,14 +188,18 @@ xcheck-setup/SKILL.md            # detect / verify / add / timeout / default
         │
   [1]  检测 ── lib/detect.sh(`which`)读 agents.toml → 已装 agent 列表
         │
-  [1.5] 冒烟 ── 每家候选 ≤60s:读 .xcheck/smoke.txt 并原样回内容。
-        │      CLI 欠费/未登录/损坏、非交互读不了文件 → fan-out 前剔除。
+  [1.5] 冒烟 ── 每家候选 ≤60s,走 lib/run-agent.sh(与实跑**同一机制**):
+        │      读 .xcheck/smoke.txt 并原样回内容。CLI 欠费/未登录/损坏、
+        │      非交互读不了文件 → fan-out 前剔除。
         │
   [2]  选集 ── --agents 参数 > default_agents 默认集(出厂:codex,kimi,pi) >
         │      弹窗多选(提醒:至少选一个非 claude)
         │
-  [3]  派发 ── 每家一个便宜 Claude subagent,一条消息并行。CLI 后台启动 +
-        │      全程落盘轮询(总时限 timeout_sec,出厂 2700s,含挂起检测)。
+  [3]  派发 ── 每家一个便宜 Claude subagent,一条消息并行。各自后台跑一条
+        │      `lib/run-agent.sh <agent> <prompt.txt>`:命令构造(arg/stdin)、
+        │      prompt 预检、清残留、取证 <agent>.cmd.txt、超时+挂起监控、
+        │      进程树击杀全部机械化;脚本结束时 <agent>.exitcode **必定存在**
+        │      (0.11.0:取代搬运工手写 shell——偶发传参故障的源头)。
         │      指令层:prompt.txt(≤2KB,只含路径)。内容层:proposal.md /
         │      input.md / context.md——评审 agent 自己读文件。
         │
@@ -218,7 +229,7 @@ xcheck-setup/SKILL.md            # detect / verify / add / timeout / default
 - 要有意义，**至少一个非 claude**。
 - bash 环境。在 **Windows + Git Bash** 上开发/测试；`detect.sh` 是 bash，macOS/Linux 理论可用。
 
-超时：每家 agent 都跑在**总执行时限**内（出厂 `2700`s，可按 agent 覆盖），由"后台启动 + 轮询"的搬运工兑现——长评审不会被前台工具上限掐断、输出永远在盘上。用 `/xcheck-setup timeout` 查改。
+超时：每家 agent 都跑在**总执行时限**内（出厂 `2700`s，可按 agent 覆盖），由 `lib/run-agent.sh` 后台 supervisor 兑现——同时做挂起检测（输出零增长 ~10 分钟即击杀）与进程树击杀，长评审不会被前台工具上限掐断、输出永远在盘上。用 `/xcheck-setup timeout` 查改。
 
 ### 安装
 
@@ -242,12 +253,14 @@ xcheck/
 │   ├── context-intake.md        # 第 0 步上下文摄入 / 方案固化
 │   ├── close-flow.md            # /xcheck-close 闭环流程(C0~C5)
 │   ├── detect.sh                # 检测:对 agents.toml 逐个 `which`
-│   ├── subagent-carrier.md      # "只搬运不评判"的 subagent 指令(后台启动+轮询)
+│   ├── run-agent.sh             # agent 执行 supervisor:构造/预检/取证/超时/挂起/击杀(0.11.0)
+│   ├── subagent-carrier.md      # "只搬运不评判"的 subagent 指令(调 run-agent.sh,不判成败以外的东西)
 │   └── extractor-carrier.md     # 事实摘录 subagent 指令
 └── prompts/
     ├── diag.md  review.md               # 喂给外部 agent 的指令模板({{PROPOSAL_PATH}}/{{INPUT_PATH}}/{{CONTEXT_PATH}})
     ├── synthesize-diag.md  synthesize-review.md   # 主会话汇总模板
     └── triage.md                        # 三类反馈分级模板
+xcheck/tests/run-agent.test.sh   # run-agent.sh 的 stub 回归测试(33 项断言,零依赖)
 xcheck-diag/SKILL.md             # 薄壳 → flow.md + diag.md
 xcheck-review/SKILL.md           # 薄壳 → flow.md + review.md
 xcheck-close/SKILL.md            # 薄壳 → close-flow.md

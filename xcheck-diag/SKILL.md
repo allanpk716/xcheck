@@ -25,14 +25,14 @@ argument-hint: [--agents a,b,c] <技术问题>
 1. 读 `~/.claude/skills/xcheck/lib/flow.md`,**严格按其中的「第 0 步(可选摄入)+ 5 步」执行**(摄入 → 检测 → 多选 → 并行派 subagent → 收齐落盘 → 主会话汇总)。本次 mode = diag。
 2. 诊断用的外部 prompt 模板:`~/.claude/skills/xcheck/prompts/diag.md`(内容落 `.xcheck/<ts>/input.md`,prompt.txt 只填 `{{INPUT_PATH}}` 路径;`context.md` 可选,见 flow.md 3.1 两层分离)。
 3. 主会话汇总模板:`~/.claude/skills/xcheck/prompts/synthesize-diag.md`。
-4. 每个 subagent 的指令 = `~/.claude/skills/xcheck/lib/subagent-carrier.md`(填好该 agent 的 AGENT_NAME / CLI_CMD / INPUT_MODE / PROMPT_FILE / TIMEOUT / RESULT_SHAPE=diag 结构)。
+4. 每个 subagent 的指令 = `~/.claude/skills/xcheck/lib/subagent-carrier.md`(填好该 agent 的 AGENT_NAME / PROMPT_FILE / RESULT_SHAPE=diag 结构;CLI 命令与超时由 lib/run-agent.sh 从 agents.toml 解析,主会话不取参)。
 
 ## 铁律(见 flow.md 与 agents.toml)
 
 - subagent **只搬运、不评判**(见 subagent-carrier.md);综合判断只由主会话做。
 - 第 2 步多选时**至少选一个非 claude**(codex / opencode);全 claude 同构要二次确认并在 SUMMARY 里标注。
 - 派 subagent 用**便宜模型**(haiku 或 sonnet),**一条消息里并行**派出去。
-- opencode / 任何 needs_timeout=true 的 agent 必须加 timeout。
+- 超时/挂起判定/击杀已由 `lib/run-agent.sh` 统一机械化(所有 agent 都有硬超时笼子,needs_timeout 只是"历史会卡"的提示标记)。
 - 成败判定看**退出码**,codex 的 MCP/banner/hook 噪声 ≠ 失败(见 subagent-carrier.md)。
 - 结果全部落盘到 `<cwd>/.xcheck/<时间戳>/`(prompt.txt、input.md(+context.md)、<agent>.raw.out、<agent>.summary.md、SUMMARY.md)。
 - 最后**交用户拍板**,原样输出:"**以上是建议,共识 ≠ 正确,最终你拍板。**" 绝不自动改代码。

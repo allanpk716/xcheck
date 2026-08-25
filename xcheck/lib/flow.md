@@ -27,22 +27,28 @@ bash ~/.claude/skills/xcheck/lib/detect.sh
 
 ## 第 1.5 步:冒烟预检(SELECTED 定下后、fan-out 前,每家 ≤60 秒)
 
-先备好固定冒烟文件(一轮一次):
+先备好两个固定冒烟文件(一轮一次):
 
 ```
-mkdir -p <cwd>/.xcheck && printf '西瓜47' > <cwd>/.xcheck/smoke.txt
+mkdir -p <cwd>/.xcheck
+printf '西瓜47' > <cwd>/.xcheck/smoke.txt
+printf '读文件 <cwd>/.xcheck/smoke.txt(绝对路径、正斜杠),原样回复文件里的内容,不要加别的字。\n' > <cwd>/.xcheck/smoke-prompt.txt
 ```
 
-对 SELECTED 里每家跑一条小 prompt(按该家 `input_mode` 构造:**arg 家**把 prompt 作为引号参数追加在 `<CLI_CMD>` 后;**stdin 家**(codex)用 `echo "<prompt>" |` 管道喂),prompt 内容:
+(第二条 printf 里的 `<cwd>` 记得代入实际绝对路径、正斜杠形式。)
 
-> 读文件 <cwd>/.xcheck/smoke.txt(绝对路径、正斜杠),原样回复文件里的内容,不要加别的字。
+对 SELECTED 里每家**用与实跑完全相同的机制**跑这条小 prompt:
 
-**主会话前台直接跑**(`timeout 60 ...`),看退出码 + 回复内容:
+```
+bash ~/.claude/skills/xcheck/lib/run-agent.sh <name> <cwd>/.xcheck/smoke-prompt.txt --timeout 60
+```
 
-- **exit 0 且回复含 `西瓜47`** → 该家可用(CLI 活性 ✓ + 读文件能力 ✓),进第 3 步。
-- **其它**(非零退出:401 欠费 / 未登录 / CLI 损坏 / 权限拒绝…;或 exit 0 但回复里没有 `西瓜47` = 非交互模式读不了文件) → 该家剔除,告知用户"X 家预检失败:<原因摘要>,本轮跳过",落 `<name>.failed.md`,其余家继续。剔除后若剩 < 2 家,按第 1 步同款话术停下。
+**主会话前台直接跑**(脚本阻塞 ≤~75 秒,远在前台 600 秒上限内)。判定看产物(全落在 `.xcheck/` 根,即 smoke-prompt.txt 同目录):
 
-> 为什么预检必须带读文件:第 3 步起 prompt.txt 只含指令、方案/问题全文靠评审 agent **自己读文件**(见 3.1 两层分离);读不了文件的家跑完整轮也只能产出空评,必须在 fan-out 前拦下。预检顺带验 CLI 活性(2026-08-15 实证:pi 账户欠费 401 直到 fan-out 后搬运工失败才暴露,整轮浪费)与 codex 的 `--skip-git-repo-check` flag(见 agents.toml)。
+- `.xcheck/<name>.exitcode` 为 **0** 且 `.xcheck/<name>.raw.stdout` 含 `西瓜47` → 该家可用(CLI 活性 ✓ + 读文件能力 ✓ + 传参机制 ✓),进第 3 步。
+- **其它**(124 超时;65/66/67 脚本层故障;其它非零 CLI 码:401 欠费 / 未登录 / CLI 损坏 / 权限拒绝…;或 exit 0 但回复里没有 `西瓜47` = 非交互模式读不了文件) → 该家剔除,告知用户"X 家预检失败:<原因摘要:exitcode + run.log/stderr 末行>,本轮跳过",落 `<cwd>/.xcheck/<name>.failed.md`,其余家继续。剔除后若剩 < 2 家,按第 1 步同款话术停下。
+
+> 为什么预检必须带读文件:第 3 步起 prompt.txt 只含指令、方案/问题全文靠评审 agent **自己读文件**(见 3.1 两层分离);读不了文件的家跑完整轮也只能产出空评,必须在 fan-out 前拦下。预检顺带验 CLI 活性(2026-08-15 实证:pi 账户欠费 401 直到 fan-out 后搬运工失败才暴露,整轮浪费)与 codex 的 `--skip-git-repo-check` flag(见 agents.toml)。为什么必须走 run-agent.sh 而不是把 prompt 直接内联当参数:冒烟要测的就是**实跑机制**(文件读入 + 传参路径),内联直传测不到故障面 —— 0.10 及之前"预检绿 ≠ 实跑绿"的形态盲区由此闭合。
 
 ## 第 2 步:定 SELECTED(默认集 / --agents / 多选 三分支)
 
@@ -123,12 +129,9 @@ mkdir -p <cwd>/.xcheck && printf '西瓜47' > <cwd>/.xcheck/smoke.txt
 ```
 (`.xcheck/` 已在 .gitignore 里,不会污染仓库。)
 
-### 3.3 读 agents.toml 拿每个 agent 的参数
+### 3.3 (已机械化,无需取参)
 
-读 `~/.claude/skills/xcheck/agents.toml`,对 SELECTED 里每个 agent 取出:
-- `run_cmd`(如 `codex exec -`、`opencode run`、`claude -p`)—— **不含 prompt**;
-- `input_mode`(`arg` 或 `stdin`);
-- `needs_timeout` / `timeout_sec`(per-agent 优先;否则取 `agents.toml` 顶部 `[defaults].timeout_sec`;`/xcheck-setup timeout` 可查改)。
+run-agent.sh 自己读 `~/.claude/skills/xcheck/agents.toml` 解析每家的 `run_cmd` / `input_mode` / `timeout_sec`(per-agent 优先,否则取 `[defaults].timeout_sec`;`/xcheck-setup timeout` 可查改)—— 主会话**不再取参、不再构造任何 shell 命令**(2026-08-25 起机械化,消灭偶发拼装故障)。
 
 ### 3.4 一条消息里并发派 |SELECTED| 个 subagent(关键)
 
@@ -138,15 +141,12 @@ mkdir -p <cwd>/.xcheck && printf '西瓜47' > <cwd>/.xcheck/smoke.txt
 
 ```
 AGENT_NAME = <name>
-CLI_CMD = <run_cmd>
-INPUT_MODE = <arg | stdin>
-PROMPT_FILE = <cwd>/.xcheck/<ts>/prompt.txt   # Windows 下传正斜杠 C:/... 形式(见 carrier 第 0 步)
-TIMEOUT = <timeout_sec;per-agent 优先,否则取 [defaults].timeout_sec>
+PROMPT_FILE = <cwd>/.xcheck/<ts>/prompt.txt   # 绝对路径;正反斜杠皆可,run-agent.sh 自动转正斜杠
 RESULT_SHAPE = <diag 结构 | review 结构>   # 由本 skill 的 mode 决定
 ```
 
 - **subagent 模型用便宜档(haiku 或 sonnet)** —— 它只是搬运工,不需要重模型。
-- **搬运工必须按 carrier 文档第 1 步的「后台启动 + 轮询」方式执行** —— `timeout_sec`/TIMEOUT 是**总时限**,经后台轮询兑现;绝不允许前台 Bash 直等(前台上限 600s,长评审会被掐断且孤儿进程的输出会永久丢失,见 carrier 文档第 1 步的事故注记)。
+- **搬运工第 1 步必须以 `run_in_background: true` 后台启动 `run-agent.sh`** —— 脚本会阻塞到外部 CLI 结束(总时限由脚本兑现),前台直等会被 600 秒上限掐断且结论永久丢失(见 carrier 文档第 1 步的事故注记)。
 - RESULT_SHAPE:
   - diag 模式 → `diag 结构(根因/证据/置信度/建议)`
   - review 模式 → `review 结构(裁决/逐条问题/理由)`

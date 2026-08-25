@@ -25,4 +25,4 @@ argument-hint: [--agents a,b,c] <方案 文本或文件路径>
 3. 评审外部 prompt:`~/.claude/skills/xcheck/prompts/review.md`。
 4. 主会话汇总:`~/.claude/skills/xcheck/prompts/synthesize-review.md`。
 
-铁律同 /xcheck-diag:subagent 只搬运不评判;至少选一个非 claude;opencode 加 timeout;结果落盘;最后交用户拍板,不自动通过/合并。
+铁律同 /xcheck-diag:subagent 只搬运不评判;至少选一个非 claude;超时/挂起由 lib/run-agent.sh 统一机械化;结果落盘;最后交用户拍板,不自动通过/合并。
