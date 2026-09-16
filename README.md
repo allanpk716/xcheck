@@ -1,170 +1,220 @@
 # xcheck
 
-**One trigger → blind cross-review by multiple local AI agents → auto-verification → a verified three-tier issue list. You decide at the single gate.**
+**一次触发 → 本地多个异构 AI agent 盲评 → 自动查证与实验 → 人话结论。停点一问,你拍板。**
 
-**一次触发 → 本地多个异构 AI agent 盲评交叉验证 → 自动查证与实验 → 已验证三分类清单。停点一问,你拍板。**
+*One trigger → blind cross-review by heterogeneous local AI agents → auto-verified verdict in plain language. One gate — you decide.*
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![Claude Code skill](https://img.shields.io/badge/Claude%20Code-skill-blue)
 
 ---
 
-xcheck is a set of global [Claude Code](https://code.claude.com/) skills. You hand it a design / proposal / code change (or a bug), and it runs **one automatic chain**:
+## 这是什么
 
-1. **(Vague or empty input)** resolves the target for you — picks the spec/plan file you just wrote or discussed in this session (or distills the discussion into a proposal), infers review vs diagnose, and packs target + mode + your verbatim background facts into **one confirmation popup**. Self-contained inputs (a file path, a pasted doc, a full stack trace) skip straight through with a silent background pull.
-2. **Detects** which local AI-agent CLIs you have (`claude`, `codex`, `opencode`, `pi`, `kimi`, …), then **smoke-tests** each candidate (≤60s: read a file and echo it back) — dead CLIs are dropped **before** fan-out.
-3. **Fans them out in parallel**, each in its own isolated subagent — **blind evaluation**, agents can't see each other. Agents read the proposal from **content files**; the prompt itself is a ≤2KB instruction layer.
-4. **Synthesizes a compact header** (per-agent verdicts + three-pattern overall: focused consensus / split / one-sided) and **triages** every feedback item into three verifiability tiers: ① directly verifiable, ② experiment-verifiable, ③ suspect / reference-only. During all of this the chat only gets one-line progress notes marked "no action needed from you".
-5. **Auto-verifies, no questions asked**: tier-① items are checked read-only against your code (✅ / ❌ / ❓ with evidence); tier-② experiments run automatically in a sandbox (temp files under `.xcheck/<ts>/exp/`, no business-code edits, no network, no deploy; per-item 300s timeout).
-6. **Single gate**: presents a **plain-language verdict** — *"your plan works, but N verified issues should be fixed first — your call"*, each must-fix with who raised it and the evidence, refuted items you can ignore, and **watch items** for development (each with a trigger and a stop-and-report action) — then asks exactly one question, *"fix these N issues and re-review?"* Yes → writes `<name>.rev1.md` (**original text untouched**) and auto re-reviews (≤2 rounds, then "recommend starting over"). No → done (`user-declined`). Either way a **review appendix** ("reference, execution governs") lands at the end of the reviewed doc; the machine-readable ledger (numbers, enums, tier symbols) stays in `.xcheck/<ts>/SUMMARY.md`.
+你在 Claude Code 里写方案、改设计、查 bug,想要第二意见。如果每个"第二意见"都来自你正在对话的这同一个模型,你什么也学不到。
 
-**Progress lives on disk only** (`PROGRESS.md`, per-stage) — crash mid-chain, re-trigger `/xcheck`, confirm "resume", and it continues from the first unfinished stage. No session memory involved.
+xcheck 是一组全局 [Claude Code](https://code.claude.com/) skill,把你本机装的**其它** AI agent CLI(`codex`、`pi`、`kimi`、`opencode`……)组织成一组**互相看不见对方的盲评审团**:一次 `/xcheck` 触发,自动跑完"盲评 → 逐条核实 → 沙箱实验",最后用一段人话告诉你——**方案能不能推进、哪几个问题已经查实、哪几个查过不用理、哪几个开发时要盯着**。全程只在结尾停一次,问你一句:改不改。
 
-The whole point is **heterogeneity**: if every "second opinion" comes from the same Claude you're already talking to, you learn nothing. xcheck insists on at least one non-`claude` agent.
+三个关键词:
 
-## Commands
+- **异构** —— 评审员来自不同厂商的不同模型,不是 Claude 自己审自己;
+- **已验证** —— 每条反馈不是被查证(只读核实)、就是被实验(沙箱复现)、要么明说"没法验证";
+- **单停点** —— 中间全自动,人的控制权放在对最终结果的拍板上,不在流程签字上。
 
-Both are **manual slash commands** (`disable-model-invocation: true`).
-
-| Command | What it does |
-|---|---|
-| `/xcheck [--agents a,b,c] <text>` | **The whole chain** — auto-routes problem vs proposal, blind fan-out, triage, verification, single gate. Bare `/xcheck` = resume check for an unfinished chain, else **resolve the target from this session's context** (one confirm popup). |
-| `/xcheck-setup` | Detect / verify / register agent CLIs. Subcommands: `add <name>`, `timeout [N \| <agent> N]`, `default [<n1>,<n2>,…]`. |
-
-Agent selection: `--agents` flag > `default_agents` (set via `/xcheck-setup default`) > hard error telling you to set a default. No popups.
-
-## How it works
-
-```
-/xcheck <text>
-   │  unfinished chain on disk? → ask: resume (PROGRESS.md, stage-granular) or start new
-   │  self-contained input? → keyword route · vague/empty? → object resolver (file > discussion
-   │  > diagnose), one confirm popup with target + mode + background
-   │
-   ├ diag ──→ smoke → fan-out → collect → synthesize + triage → present ("you decide") → done
-   │
-   └ review → resolve (vague) or silent background pull (self-contained)
-              discussion-type: the solidified proposal lands as
-              docs/superpowers/specs/<date>-<topic>-consensus.md — revisions go next to it
-        → smoke → fan-out (blind, parallel) → collect → compact header → triage
-        → verify ① (read-only, auto) → experiments ② (sandbox, auto)
-        ══ SINGLE GATE: plain-language verdict + one question ("fix these N?") ══
-              │No (→ user-declined)      │Yes
-              ▼                          ▼
-        review appendix (reference,   write .rev1.md (original text untouched)
-        appended to reviewed doc)     → auto re-review
-                                     ≤2 rounds → converged | "recommend starting over"
-```
-
-**Two iron rules** (break them and the skill is worthless):
-
-1. **Subagents only carry, never judge.** Synthesis/verification happens only in the main session.
-2. **Always ≥1 non-`claude` agent.** Otherwise Claude is reviewing itself.
-
-## Requirements
-
-- [Claude Code](https://code.claude.com/) — the orchestration runs inside it.
-- One or more local AI-agent CLIs on your `PATH`. Out of the box it knows: `claude` (`claude -p`), `codex` (`codex exec --skip-git-repo-check -s danger-full-access -`, stdin), `opencode` (`opencode run`), `pi` (`pi -p`), `kimi` (`kimi -p`). Add more via `/xcheck-setup add <name>`.
-- For xcheck to be meaningful, at least one must be non-`claude`.
-- A bash shell. Developed/tested on Windows + Git Bash.
-
-Timeouts: every agent runs under a total execution budget (factory `2700`s, per-agent overridable) enforced by `lib/run-agent.sh` (background supervisor + hang detection + tree-kill). View / change via `/xcheck-setup timeout`.
-
-## Install
+## 快速开始
 
 ```bash
-# from the repo root
-cp -r xcheck xcheck-setup ~/.claude/skills/
+git clone <本仓库> && cd xcheck
+mkdir -p ~/.claude/skills && cp -r xcheck xcheck-setup ~/.claude/skills/
 ```
 
-Then in Claude Code, make sure each agent CLI is logged in, and run `/xcheck-setup` once to verify everything talks.
+> Windows 开发机可以用 junction 代替拷贝(免提权,且是活的——改仓库即改 skill):
+> ```bash
+> cmd //c mklink //J "%USERPROFILE%\.claude\skills\xcheck"      "<仓库绝对路径>\xcheck"
+> cmd //c mklink //J "%USERPROFILE%\.claude\skills\xcheck-setup" "<仓库绝对路径>\xcheck-setup"
+> ```
 
-> The shared logic lives in `xcheck/lib/` and `xcheck/prompts/`; `xcheck-setup/` is a thin shell. On Windows you can junction instead of copying (junctions are live — editing the repo edits the skill).
-
-## File layout
+1. 确保 [Claude Code](https://code.claude.com/) 可用,且**至少两个** agent CLI 在 `PATH` 上、已登录。出厂认识:`claude`、`codex`、`opencode`、`pi`、`kimi`(加新的见 [agent 管理](#agent-管理))。要有意义,至少一家得是非 `claude`。
+2. 在 Claude Code 里跑一次 `/xcheck-setup` —— 逐家实测非交互能不能跑通,给出 ✅ / ⏱️ / ❌ / 🔑 一览。
+3. 出厂默认评审组 = **codex + pi**(`agents.toml` 里的 `default_agents`),不合适就换:`/xcheck-setup default codex,kimi`。
+4. 给它任何东西:
 
 ```
-xcheck/
-├── SKILL.md                     # /xcheck — entry: --agents / unfinished-chain check / routing
-├── agents.toml                  # agent → non-interactive command map + defaults (timeout, default_agents)
-├── lib/
-│   ├── flow.md                  # the auto-chain brain: resume mode + steps 0-10 + PROGRESS + edges
-│   ├── context-intake.md        # step-0 object resolver (file > discussion > diagnose) + context intake
-│   ├── detect.sh                # detection: `which` over agents.toml
-│   ├── run-agent.sh             # agent execution supervisor: build/precheck/forensics/timeout/hang/kill
-│   ├── subagent-carrier.md      # the "carry, don't judge" subagent instructions
-│   └── extractor-carrier.md     # the fact-extraction subagent instructions
-├── prompts/
-│   ├── diag.md  review.md               # instruction templates fed to each external agent
-│   ├── synthesize-diag.md  synthesize-review.md   # synthesis (review = compact header)
-│   └── triage.md                        # three-tier feedback triage
-└── tests/run-agent.test.sh      # stub regression suite for run-agent.sh (33 assertions)
-xcheck-setup/SKILL.md            # detect / verify / add / timeout / default
-CONTEXT.md                       # glossary (canonical terms)
-docs/adr/0001-single-gate-autochain.md   # why the single-gate redesign
+/xcheck 评审 docs/superpowers/specs/2026-09-16-foo-design.md
+/xcheck 帮我看看这个方案行不行:<贴方案全文>
+/xcheck 为什么这个服务一起动就崩:<完整报错栈>
+/xcheck            ← 裸敲:续跑未完成的链,或从刚才的对话里猜你要评什么
 ```
 
-## Philosophy / guardrails
+## 一次 /xcheck 会发生什么
 
-- **Blind evaluation** — each agent runs in its own process, in parallel, never seeing the others.
-- **Subagents never judge** — they only carry and condense.
-- **Human at the single gate** — output is always "suggestions"; it never edits code, merges, or approves for you. Experiments stay sandboxed; revisions are always new files, original text untouched (the end-of-doc review appendix is the sole exception).
-- **Chat speaks human, files keep the machine ledger** — the conversation and the review appendix talk about *your* plan in plain sentences; numbering, enums and tier symbols live only in `.xcheck/<ts>/SUMMARY.md`.
-- **Progress on disk only** — every run leaves a full audit trail under `.xcheck/<ts>/` (prompt, content snapshots, raw outputs, summaries, PROGRESS, SUMMARY); resumable at stage granularity.
-- **Cheap carriers, strong synthesizer** — subagents use haiku/sonnet; the main session uses the strong model.
+```
+/xcheck <文字>
+   │  输入含糊或为空 ──→ 对象解析器:从本会话猜你要评什么
+   │                     (文件 > 固化讨论 > 诊断),一个确认窗打包过目
+   │  输入自包含 ──────→ 词表自动路由 review | diag,静默附带对话背景
+   ▼
+ 检测 + 冒烟预检(每家 ≤60s 读文件回显;坏家在派发前剔除)
+   ▼
+ 并行盲评:每家一个隔离 subagent,agent 自己读内容文件,prompt 只是 ≤2KB 指令层
+   ▼
+ 紧凑头汇总(各家裁决一行 + 总判)→ 三分类:①可直接证实 ②可实验验证 ③存疑仅参考
+   ▼
+ 自动验证:①逐条只读查证(✅/❌/❓ 带证据)· ②沙箱实验(成立/不成立/无定论,单条 300s)
+   ▼
+ ══ 单停点:人话结论 + 唯一一问"要我把这 N 个问题改了、再自动评一轮吗?" ══
+   ├─ 不要 → 终态"用户不修",链结束
+   └─ 要 → 写 <原名>.rev1.md(原稿正文不动)→ 自动复审
+              ≤2 轮 → 收敛 | "建议推倒重来"
 
-## License
+ diag 模式(排障)止步于汇总 + 三分类,没有验证链和停点问题。
+```
 
-[MIT](LICENSE) © 2026 allanpk716
+过程中的对话只有一两行标注"无需操作"的进度播报;明细全部落盘。整条链只在三处开口等你:续跑确认(仅当盘上有未完成的链)、对象确认(仅当输入含糊)、结尾停点。
 
----
+### 停点你会看到什么(示例)
 
-## 中文文档
+> 方案能用,但有 2 个问题已经查实,建议改完再动手 —— 改不改你定。
+>
+> **已查实、必须改的:**
+> 1. 迁移脚本没有回滚分支 —— kimi 提的,核实属实(migrations/0021.sql:18,只有 UP 没有 DOWN)
+> 2. 新缓存层并发下会重复建连接 —— codex 提的,实测复现(`.xcheck/20260916-142233/exp/` 里的实验)
+>
+> **查过、不用理的:**
+> - pi 说"配置热加载会丢默认值" —— 不成立(config/loader.ts:55 有显式 fallback)
+>
+> **没法验证、开发时要盯的:**
+> - "第三方 API 明年限流政策可能收紧"(kimi)—— 触发:接入量过 10 万/日;命中:停下反馈,别默默绕过
+>
+> 原始评审和逐条证据都在 `.xcheck/20260916-142233/`。以上是建议,共识 ≠ 正确,最终你拍板。
+>
+> **要我把这 2 个问题改了、再自动评一轮吗?** [要 / 不要]
 
-`xcheck` 是一组全局 [Claude Code](https://code.claude.com/) skill。你给它一个方案/设计/代码改动(或一个 bug),它跑**一条自动链**:
+机器账(编号 `#n`、enum、①②③、严重度标签)只活在 `.xcheck/<ts>/SUMMARY.md`,对话永远在说你的方案。
 
-1. **(输入含糊或为空)**对象解析——自动锁定本会话刚写/刚讨论的 spec、plan 或设计文档(纯讨论则固化成 proposal,**确认时落盘为 `docs/superpowers/specs/<日期>-<主题>-consensus.md`**,修订落它旁边),推断 review 还是 diag,把**对象+模式+你的背景原话打包成一个确认窗**过目;自包含输入(路径/贴文/完整报错)直接走,静默带背景。
-2. **检测**本机 AI agent CLI 并逐家**冒烟预检**(≤60s 读文件回显)——坏家在 fan-out 前剔除。
-3. **并行派发**,每家一个隔离 subagent——**盲评**,互不可见;agent 自己读**内容文件**,prompt 只是 ≤2KB 指令层。
-4. **紧凑头汇总**(各家裁决一行 + 总判三定式:焦点共识/意见分裂/一边倒)+ **三分类**:①可直接证实 / ②可实验验证 / ③存疑仅参考。期间对话只有一行行标着"无需操作"的进度播报。
-5. **自动验证,不问**:①逐条只读查证(✅/❌/❓ 带证据);②沙箱实验自动跑(临时文件落 `exp/`、禁改业务代码/联网/部署、单条 300s 超时)。
-6. **单停点**:呈现**人话结论**——"方案能用,但有 N 个问题已经查实,建议改完再动手——改不改你定"(或"没发现能查实的问题,可以推进"),每条必改带谁提的+证据、证伪条目"查过不用理"、**开发时要盯**(③+②无定论,每条带触发点与"命中:停下反馈"),只问一句——"**要我把这 N 个问题改了、再自动评一轮吗?**"要 → 写 `<原名>.rev1.md`(**原稿正文不动**)并自动复审(≤2 轮,超限报"推倒重来");不要 → 终态 `用户不修`。无论哪条路,**评审附录**("评审参考,以实际执行为准")落被评文档文末;机器账(编号/enum/①②③)只在 `.xcheck/<ts>/SUMMARY.md`。
+### 修订与复审
 
-**进度只认盘**(`PROGRESS.md` 阶段粒度)——链中途崩了,重敲 `/xcheck` 确认"续跑",从第一个未完成阶段继续,不依赖任何会话记忆。
+停点答"要":主会话(持有全部证据的那一个)亲自写修订版——评审对象是文件 → 修订版落在**原文件同目录**(`<原名>.rev1.md`);是贴文 → 落 `.xcheck/<ts>/`。**原稿正文永不动**。然后自动完整复审一轮;必改清零 → 终态"收敛";连续两轮改不干净 → 报"建议推倒重来"。
 
-核心是**异构**:至少一个非 claude 的 agent,否则就是 Claude 自己审自己。
+评审对象来自纯讨论(没有文件)时,确认窗里过目的固化稿会落成正式共识文档 `docs/superpowers/specs/<日期>-<主题>-consensus.md`,修订版落在它旁边。
 
-### 两个命令(手动 slash 命令)
+链走到结论性终态时(收敛 / 推倒重来 / 无需修订 / 用户不修),被评文档**文末**会多出一节"评审附录"——结论、必改、不用理的、开发时要盯的,跟着方案走。附录自我声明"评审参考,以实际执行为准",但"盯住项命中就停下反馈"是动作,不是参考。
+
+### 中断了怎么办
+
+进度只认盘:每个阶段完成即勾 `.xcheck/<ts>/PROGRESS.md`。会话崩了、机器重启了,重新敲 `/xcheck`,它发现未完成的链,问一句"续跑还是新开",确认后从第一个未完成阶段继续——盲评结果不会白跑,不依赖任何会话记忆。
+
+## 两个命令
+
+都是手动 slash 命令(模型不会自作主张触发)。
 
 | 命令 | 作用 |
 |---|---|
-| `/xcheck [--agents a,b,c] <文字>` | **整条链**——自动路由、盲评、三分类、验证、单停点。裸敲 = 查未完成链,否则**从本会话上下文解析评审对象**(一个确认窗)。 |
-| `/xcheck-setup` | 检测/验证/登记 agent CLI。子命令:`add <name>`、`timeout [N \| <agent> N]`、`default [...]`。 |
+| `/xcheck [--agents a,b,c] [<文字>]` | 整条自动链:路由 → 盲评 → 三分类 → 验证 → 停点。裸敲 = 查未完成链,没有就从会话上下文解析评审对象(一个确认窗)。 |
+| `/xcheck-setup` | 检测 / 验证 / 登记 agent。子命令见下。 |
 
-选集:`--agents` 参数 > `default_agents` 默认集(用 `/xcheck-setup default` 设)> 报错提示先设默认集。无弹窗。
+`/xcheck` 的输入形态:
 
-### 两条铁律(违反则 skill 价值归零)
+| 你给什么 | xcheck 怎么做 |
+|---|---|
+| 文件路径 | `cp` 成快照,按关键词自动定 review/diag |
+| 全文贴文 / 完整报错栈 | 同上,自包含直进 |
+| 空或含糊("评审刚才那个") | 对象解析器从最近对话推断对象+模式+背景,一个确认窗过目 |
+| 什么都没有(裸敲) | 先查未完成链;没有就走上面的解析器 |
 
-1. **subagent 只搬运、不评判**;综合/查证/裁决只在主会话。
-2. **至少一个非 claude**。
+选集规则:`--agents` 临时指定 > `default_agents` 默认集 > 报错提示先设默认集。默认集里有当前没装的家,自动降级用交集并注明,不弹窗。全 claude 同构不拦,但 SUMMARY 会标注"异构价值未体现"。
 
-### 安装
+### /xcheck-setup 子命令
 
-```bash
-cp -r xcheck xcheck-setup ~/.claude/skills/
+| 用法 | 作用 |
+|---|---|
+| `/xcheck-setup` | 探测 PATH 上已登记的 CLI,逐家喂极小 prompt 实测(marker 回显),报 ✅ 跑通 / ⏱️ 超时 / ❌ 命令错 / 🔑 未登录 |
+| `/xcheck-setup add <name>` | 登记新 CLI:核实 `--help`、引导填 `agents.toml` 字段、立即验证,失败自动回退 |
+| `/xcheck-setup timeout [N \| <agent> N]` | 查看 / 设置 agent 总执行预算(默认集全局 2700s,可按家覆盖) |
+| `/xcheck-setup default [a,b,c \| --clear]` | 查看 / 设置 / 清空默认评审组 |
+
+## 产物落在哪
+
+全部在项目根的 `.xcheck/`(本仓库已 gitignore;在别的项目里用时,记得把它加进那个项目的 `.gitignore`):
+
+```
+.xcheck/
+├── <ts>/                          # 一次链一个目录(本地时间戳 YYYYMMDD-HHMMSS)
+│   ├── PROGRESS.md                #   阶段勾选 + 终态 —— 断点续跑的唯一权威
+│   ├── proposal.md / input.md     #   评审 / 诊断对象快照(原文件中途被改不影响本轮)
+│   ├── context.md                 #   背景原话(有才建)
+│   ├── prompt.txt                 #   指令层(≤2KB,引用上面的内容文件)
+│   ├── <agent>.raw.out            #   各家原始输出,原样留底
+│   ├── <agent>.summary.md         #   各家结构化结论
+│   ├── <agent>.exitcode 等        #   执行 supervisor 取证(实际命令/运行日志/原始管道)
+│   ├── <agent>.failed.md          #   失败记录(有才建)
+│   ├── exp/                       #   ②类实验的临时文件,留底不删
+│   └── SUMMARY.md                 #   机器账:结论区 + 三分类明细 + 逐条证据
+├── smoke.txt / smoke-prompt.txt   # 冒烟固定文件
+└── <agent>.failed.md              # 冒烟淘汰记录
 ```
 
-进 Claude Code 后确保各 agent CLI 已登录,跑一次 `/xcheck-setup` 验证。开发机上可用 junction 代替拷贝(Windows 免提权,junction 是活的)。
+各字段的精确语义见 [docs/artifacts.md](docs/artifacts.md)(给 AI agent 读的产物解读,人看也行)。
 
-### 命门
+## agent 管理
 
-- **盲评**——独立进程、并行、互不可见。
-- **subagent 不评判**——只搬运精简。
-- **单停点人在环**——输出永远是"建议",绝不替你改代码/合并/通过;实验锁沙箱,修订永远写新文件,原稿正文永不动(唯一例外:终态在被评文档文末追加评审附录)。
-- **对话说人话、文件留机器账**——对话和评审附录每句都在说你的方案;编号、enum、①②③只活在 `.xcheck/<ts>/SUMMARY.md`。
-- **进度只认盘**——`.xcheck/<ts>/` 全量留底,阶段粒度可续跑。
-- **便宜搬运、强模型汇总**。
+`~/.claude/skills/xcheck/agents.toml` 是唯一登记表:每家一个 `[agents.<name>]` 块(`installed_check` / `run_cmd` / `input_mode = arg|stdin` / `needs_timeout` / `timeout_sec`),`[defaults]` 放全局超时和默认集。日常用 `/xcheck-setup` 改;手改可以,但别整文件覆盖(会丢注释和实测注记)。
 
-### 许可证
+每家 agent 都跑在 `lib/run-agent.sh` 全托管 supervisor 里:后台启动、全程输出落盘、硬超时(默认 2700s)+ 挂起击杀(输出零增长 ~10 分钟)+ 进程树三层击杀;成败只认 exitcode 文件,不认输出里有没有 "error" 字样。
+
+## 设计原则
+
+1. **盲评** —— 独立进程、并行、互不可见,防串通。
+2. **subagent 只搬运、不评判** —— 综合与裁决只发生在主会话(强模型);便宜的模型只做搬运和摘录。
+3. **单停点人在环** —— 永不自动改代码、自动合并、自动"通过";实验锁沙箱(禁改业务代码/禁联网/禁部署);修订只写新文件,原稿正文永不动(唯一例外:终态评审附录)。
+4. **对话说人话、文件留机器账** —— 对话与附录每句都在说你的方案;编号、enum、①②③只活在 SUMMARY.md。
+5. **进度只认盘** —— 全量留底、阶段粒度可续跑,不依赖会话记忆。
+6. **成败看退出码** —— codex 的 banner/MCP/hook 噪声不是失败;真伪一律有落盘证据可回放。
+
+## 已知边界
+
+- **至少 2 家**才开跑,冒烟淘汰后不足 2 家也停,不硬跑单家。全 claude 同构**不拦**,只在 SUMMARY 标注"异构价值未体现"——但要有意义,至少一家非 claude。
+- **codex 0.153.0(Windows 非交互)**:read-only / workspace-write 沙箱一律拒绝进程创建,须 `-s danger-full-access` 才能参评(已在 agents.toml;升级 codex 后可重试降档)。
+- **非交互 `claude -p`** 无授权时读不了工作目录外的路径 —— xcheck 的内容文件全在 `<cwd>/.xcheck/` 下,不受影响;手工测试把文件放别处才会踩到。
+- **大文档**没有命令行长度问题:指令层与内容层分离,全文由 agent 自己读文件,绕开 Windows 32767 字符上限。
+- **修订硬上限 2 轮**,超限报"建议推倒重来"。
+- 在 **Windows + Git Bash** 上开发与实测;其它 bash 环境理论可用,未系统验证。
+
+## 仓库结构
+
+```
+xcheck/
+├── SKILL.md                        # /xcheck 入口壳:--agents / 未完成链 / 路由 / 转派
+├── agents.toml                     # agent 登记表 + 默认配置(超时、默认集)
+├── lib/
+│   ├── flow.md                     # 自动链大脑:恢复模式 + 第 0~10 步 + 铁律
+│   ├── context-intake.md           # 对象解析器(文件>讨论>诊断>反问)+ 零往返背景
+│   ├── subagent-carrier.md         # 搬运工指令(只搬运不评判)
+│   ├── extractor-carrier.md        # 摘录员指令(按来源摘原话)
+│   ├── run-agent.sh                # agent 执行 supervisor(超时/挂起/击杀/取证)
+│   └── detect.sh                   # PATH 探测
+├── prompts/                        # 指令模板:diag/review + 汇总 + 三分类
+└── tests/run-agent.test.sh         # supervisor 回归测试(33 断言,零依赖)
+xcheck-setup/SKILL.md               # /xcheck-setup 壳(4 种模式)
+CONTEXT.md                          # 术语表(权威定义)
+AGENTS.md                           # 给 AI agent 的维护导览
+docs/artifacts.md                   # .xcheck/ 产物解读(给 AI agent)
+docs/adr/                           # 架构决策记录
+docs/cli-findings.md                # 各 CLI 非交互契约的实测记录(agents.toml 的事实来源)
+docs/superpowers/                   # 设计稿与实施计划(历史存档)
+CHANGELOG.md
+```
+
+## 开发
+
+改 `run-agent.sh` 或 `agents.toml` 解析逻辑,必须跑回归测试(只要 bash + coreutils,约 15 秒):
+
+```bash
+bash xcheck/tests/run-agent.test.sh
+```
+
+给 AI agent 的维护导览(模块地图、铁律不变量、扩展指南、文档同步义务)见 [AGENTS.md](AGENTS.md);术语的权威定义见 [CONTEXT.md](CONTEXT.md)。
+
+## License
 
 [MIT](LICENSE) © 2026 allanpk716

@@ -3,6 +3,18 @@
 All notable changes to `xcheck`. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 本文件记录 xcheck 的所有显著变更。
 
+## [0.14.1] - 2026-09-16
+
+### Changed / 改进
+
+- **Factory default agent set is now `["codex", "pi"]`** (net of two post-0.14.0 tweaks: `pi` briefly removed 3→2, then `kimi` swapped for `pi`). Both `kimi` and `opencode` stay registered and fully usable via `--agents` / `/xcheck-setup default`. README now states the shipped default truthfully.
+- **出厂默认 agent 集改为 `["codex", "pi"]`**(0.14.0 后两次调整的净结果:先移除 pi 3→2,后 kimi 换 pi)。`kimi`、`opencode` 仍完整登记,`--agents` / `/xcheck-setup default` 随时可用;README 如实标注出厂默认。
+
+### Docs / 文档
+
+- **Documentation rewritten from scratch, split into two audiences.** Human-facing: `README.md` fully rewritten (the old one had accreted five releases of patch-syncs) — what/why, quick start, the chain, a worked gate example, command reference, artifacts map, guardrails, known limits. AI-agent-facing: new `AGENTS.md` at the repo root (maintainer guide: precise lifecycle, module map with edit-warnings, invariants, state protocol, failure semantics, extension recipes, test & doc-sync obligations) and new `docs/artifacts.md` (consumer guide: how to read `.xcheck/<ts>/`, PROGRESS/SUMMARY formats, terminal states, exitcode semantics, what a host agent may and may not do). All docs are Chinese-primary, matching the repo's implementation files.
+- **文档推倒重写,按两类读者分流。** 人类向:`README.md` 全量重写(旧版是五个版本补丁的叠加)——是什么/为什么、快速开始、自动链、停点实例、命令参考、产物地图、原则与已知边界。AI agent 向:新增仓库根 `AGENTS.md`(维护导览:精确生命周期、模块地图与修改注意、不变量、状态协议、故障语义、扩展指南、测试与文档同步义务)与 `docs/artifacts.md`(使用向:`.xcheck/<ts>/` 逐文件解读、PROGRESS/SUMMARY 格式、终态六值、exitcode 语义、宿主 agent 能做/不能做)。全部文档中文为主,与实现文件一致。
+
 ## [0.14.0] - 2026-09-16
 
 ### Changed / 改进
