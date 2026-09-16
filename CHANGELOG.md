@@ -3,6 +3,13 @@
 All notable changes to `xcheck`. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 本文件记录 xcheck 的所有显著变更。
 
+## [0.13.0] - 2026-09-16
+
+### Added / 新增
+
+- **Object resolver — bare or vague `/xcheck` now infers what you mean.** Empty/referential input (`/xcheck`, `审核刚才的spec`) no longer bounces back with "diagnose or review?" — the shell sets `MODE = auto` and flow step 0's **object resolver** infers the review target from this session's context, in a priority ladder: **file-type** (the spec/plan/design doc you just wrote or edited in this session — cross-session fallback scans `docs/superpowers/{specs,plans}/` and `docs/` for the newest ≤24h .md) > **discussion-type** (no file: distill the settled plan into a neutral proposal + verbatim fact list) > **diagnose-type** (conversation is chasing an error → diag + fact extraction) > ask. Everything lands in **one confirmation popup** (target + mode + background quotes; discussion-type shows the full solidified proposal) — the chain's only opening besides the gate. A file-type resolution sets `source` to the file path, so gate-approved revisions land **next to the original** (`<name>.rev1.md`) instead of inside `.xcheck/`. This replaces four separate heuristics (diagnose-vs-review ask, referential-word exception, scheme-type exception, plain intake). Review keyword list gained `spec / plan / 审核 / 看看 / 过一遍 / 检查`. Design: spec §10, decision record: `docs/adr/0002-object-resolver.md`.
+- **对象解析器——裸敲或含糊的 `/xcheck` 能猜到你要什么。** 空/指代性输入不再被"诊断还是评审?"弹回:壳设 `MODE = auto`,flow 第 0 步对象解析器从本会话上下文按阶梯推断评审对象:**文件型**(本会话刚写/刚改的 spec/plan/设计文档;跨会话兜底扫 `docs/superpowers/{specs,plans}/`、`docs/` 近 24h 最新 .md)> **讨论型**(无文件:固化方案 + 原话事实清单)> **诊断型**(对话在追报错 → diag + 摘事实)> 反问。全部推断打包进**一个确认窗**(对象+模式+背景原话;讨论型附固化稿全文)——除停点外全链唯一开口。文件型解析 source=路径,停点后的修订版落**原文件同目录**。取代旧的"诊断还是评审"反问、指代词例外、方案型例外、普通摄入四套判定;review 词表补 `spec/审核/看看/过一遍/检查`。设计见 spec §10、`docs/adr/0002-object-resolver.md`。
+
 ## [0.12.0] - 2026-09-16
 
 ### Changed / 改进

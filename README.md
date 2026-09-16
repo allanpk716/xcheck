@@ -11,7 +11,7 @@
 
 xcheck is a set of global [Claude Code](https://code.claude.com/) skills. You hand it a design / proposal / code change (or a bug), and it runs **one automatic chain**:
 
-1. **(Only if your input isn't self-contained)** solidifies context — distills a neutral, self-contained proposal plus a verbatim list of facts you stated, shows you both for approval before anything is fanned out. Self-contained inputs skip this but still silently pull related user quotes into a context file.
+1. **(Vague or empty input)** resolves the target for you — picks the spec/plan file you just wrote or discussed in this session (or distills the discussion into a proposal), infers review vs diagnose, and packs target + mode + your verbatim background facts into **one confirmation popup**. Self-contained inputs (a file path, a pasted doc, a full stack trace) skip straight through with a silent background pull.
 2. **Detects** which local AI-agent CLIs you have (`claude`, `codex`, `opencode`, `pi`, `kimi`, …), then **smoke-tests** each candidate (≤60s: read a file and echo it back) — dead CLIs are dropped **before** fan-out.
 3. **Fans them out in parallel**, each in its own isolated subagent — **blind evaluation**, agents can't see each other. Agents read the proposal from **content files**; the prompt itself is a ≤2KB instruction layer.
 4. **Synthesizes a compact header** (per-agent verdicts + one-line overall) and **triages** every feedback item into three verifiability tiers: ① directly verifiable, ② experiment-verifiable, ③ suspect / reference-only.
@@ -28,7 +28,7 @@ Both are **manual slash commands** (`disable-model-invocation: true`).
 
 | Command | What it does |
 |---|---|
-| `/xcheck [--agents a,b,c] <text>` | **The whole chain** — auto-routes problem vs proposal, blind fan-out, triage, verification, single gate. Bare `/xcheck` = resume check for an unfinished chain. |
+| `/xcheck [--agents a,b,c] <text>` | **The whole chain** — auto-routes problem vs proposal, blind fan-out, triage, verification, single gate. Bare `/xcheck` = resume check for an unfinished chain, else **resolve the target from this session's context** (one confirm popup). |
 | `/xcheck-setup` | Detect / verify / register agent CLIs. Subcommands: `add <name>`, `timeout [N \| <agent> N]`, `default [<n1>,<n2>,…]`. |
 
 Agent selection: `--agents` flag > `default_agents` (set via `/xcheck-setup default`) > hard error telling you to set a default. No popups.
@@ -38,11 +38,12 @@ Agent selection: `--agents` flag > `default_agents` (set via `/xcheck-setup defa
 ```
 /xcheck <text>
    │  unfinished chain on disk? → ask: resume (PROGRESS.md, stage-granular) or start new
-   │  route: problem → diag · proposal → review · can't tell → ask
+   │  self-contained input? → keyword route · vague/empty? → object resolver (file > discussion
+   │  > diagnose), one confirm popup with target + mode + background
    │
    ├ diag ──→ smoke → fan-out → collect → synthesize + triage → present ("you decide") → done
    │
-   └ review → intake (only if non-self-contained: distill + your approval)
+   └ review → resolve (vague) or silent background pull (self-contained)
         → smoke → fan-out (blind, parallel) → collect → compact header → triage
         → verify ① (read-only, auto) → experiments ② (sandbox, auto)
         ══ SINGLE GATE: verified three-tier list + one question ══
@@ -85,7 +86,7 @@ xcheck/
 ├── agents.toml                  # agent → non-interactive command map + defaults (timeout, default_agents)
 ├── lib/
 │   ├── flow.md                  # the auto-chain brain: resume mode + steps 0-10 + PROGRESS + edges
-│   ├── context-intake.md        # step-0 context intake / proposal solidification
+│   ├── context-intake.md        # step-0 object resolver (file > discussion > diagnose) + context intake
 │   ├── detect.sh                # detection: `which` over agents.toml
 │   ├── run-agent.sh             # agent execution supervisor: build/precheck/forensics/timeout/hang/kill
 │   ├── subagent-carrier.md      # the "carry, don't judge" subagent instructions
@@ -118,7 +119,7 @@ docs/adr/0001-single-gate-autochain.md   # why the single-gate redesign
 
 `xcheck` 是一组全局 [Claude Code](https://code.claude.com/) skill。你给它一个方案/设计/代码改动(或一个 bug),它跑**一条自动链**:
 
-1. **(仅当输入不自包含)**摄入固化——中性自包含 proposal + 你原话的事实清单,两者经你过目后才 fan-out;自包含输入跳过,但仍静默摘相关背景。
+1. **(输入含糊或为空)**对象解析——自动锁定本会话刚写/刚讨论的 spec、plan 或设计文档(纯讨论则固化成 proposal),推断 review 还是 diag,把**对象+模式+你的背景原话打包成一个确认窗**过目;自包含输入(路径/贴文/完整报错)直接走,静默带背景。
 2. **检测**本机 AI agent CLI 并逐家**冒烟预检**(≤60s 读文件回显)——坏家在 fan-out 前剔除。
 3. **并行派发**,每家一个隔离 subagent——**盲评**,互不可见;agent 自己读**内容文件**,prompt 只是 ≤2KB 指令层。
 4. **紧凑头汇总**(各家裁决一行 + 总判一两句)+ **三分类**:①可直接证实 / ②可实验验证 / ③存疑仅参考。
@@ -133,7 +134,7 @@ docs/adr/0001-single-gate-autochain.md   # why the single-gate redesign
 
 | 命令 | 作用 |
 |---|---|
-| `/xcheck [--agents a,b,c] <文字>` | **整条链**——自动路由、盲评、三分类、验证、单停点。裸敲 = 查未完成链。 |
+| `/xcheck [--agents a,b,c] <文字>` | **整条链**——自动路由、盲评、三分类、验证、单停点。裸敲 = 查未完成链,否则**从本会话上下文解析评审对象**(一个确认窗)。 |
 | `/xcheck-setup` | 检测/验证/登记 agent CLI。子命令:`add <name>`、`timeout [N \| <agent> N]`、`default [...]`。 |
 
 选集:`--agents` 参数 > `default_agents` 默认集(用 `/xcheck-setup default` 设)> 报错提示先设默认集。无弹窗。
