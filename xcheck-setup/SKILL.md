@@ -63,11 +63,11 @@ xcheck 调用 agent 时给 shell 套的 `timeout <sec>` 上限。**只影响 xch
 
 ## 模式 D:`default [...]` → 查看 / 设置 / 清空默认 agent 集
 
-设了默认集之后,`/xcheck`(及 diag/review)会**直接拿这组跑,跳过每次的勾选弹窗**;没设就回退到每次弹多选。详见 `~/.claude/skills/xcheck/lib/flow.md` 第 2 步。优先级:`--agents` 临时参数 > `default_agents` > 每次弹窗。
+设了默认集之后,`/xcheck` 会**直接拿这组跑**;没设则 `/xcheck` **报错停住**,提示先设默认集(不再有每次勾选弹窗)。详见 `~/.claude/skills/xcheck/lib/flow.md` 第 1 步。优先级:`--agents` 临时参数 > `default_agents` > 报错提示先设默认集。
 
 3 种调用:
 
-- **`/xcheck-setup default`**(无参)→ 读 `agents.toml` 的 `[defaults].default_agents`。有值就表格/列表呈现当前默认集;没设(字段缺失/空)就提示"未设默认,每次运行会弹多选"。
+- **`/xcheck-setup default`**(无参)→ 读 `agents.toml` 的 `[defaults].default_agents`。有值就表格/列表呈现当前默认集;没设(字段缺失/空)就提示"未设默认,`/xcheck` 会报错要求先设默认集"。
 - **`/xcheck-setup default <n1>,<n2>,...`**(逗号分隔的名字)→ 设置默认集。空格忽略;同名去重、保序(首次出现为准)。
 - **`/xcheck-setup default --clear`**(或设空字符串 `default ""`)→ 清空默认集(回到每次弹窗),提示"已清空"。
 
