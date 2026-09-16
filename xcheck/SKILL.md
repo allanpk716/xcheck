@@ -20,36 +20,31 @@ argument-hint: [--agents a,b,c] [<问题描述或方案>]
 - **没有未完成** → 进第 3 件。
 - **有** → AskUserQuestion(单选):
   - `续跑 <ts>(停于:<PROGRESS 第一个未勾阶段>)` → 设 `RESUME_TS = <ts>`,**跳过路由与摄入**,直接按第 4 件转派 flow.md 恢复模式。
-  - `新开` → 剩余 `$ARGUMENTS` 非空 → 进第 3 件;为空 → 反问"要评审什么/诊断什么?"拿到内容再进第 3 件。
+  - `新开` → 进第 3 件(输入为空也没关系,第 3 件会转解析器从上下文推断)。
 
 > 旧版产物(run.md、无 PROGRESS.md 的目录)**不算未完成**,静默忽略。
 
-## 3. 路由(diag | review)
+## 3. 定 MODE(自包含走词表;空/含糊走解析器)
 
-扫描剩余 `$ARGUMENTS`(及最近对话,若有)是否命中强信号关键词。**子串包含、大小写不敏感。**
+先判剩余 `$ARGUMENTS` 是否**自包含**:文件路径 / 完整报错栈 / 设计文档全文 / 大段代码 / 明显足够长的完整描述。
 
-**🩺 diag 强信号**(已发生的坏现象 / 根因):
-- 中文:报错、错误、失败、异常、bug、定位、根因、排查、调查、不工作、不生效、跑不通、卡住、死锁、崩溃、闪退、抛异常、重现、复现、为什么不、怎么不、编译失败、装不上、超时、堆栈
-- 英文:error、crash、exception、stack trace、traceback、panic、segfault、fail / fails / failed / failure、hang、deadlock、timeout、ERESOLVE(及类似大写错误码)
+**A. 自包含** → 关键词路由定 MODE(**子串包含、大小写不敏感**):
 
-**🔎 review 强信号**(待决策的方案 / 设计 / 改动):
-- 中文:评审、方案、设计、评估、改进、重构、行不行、这样写对吗、可行性、取舍、优化方案、代码评审、设计文档、PR、MR
-- 英文:review、design、proposal、refactor、trade-off、PR、MR、lgtm、looks good、blocking on、feedback
+- **🩺 diag 强信号**(已发生的坏现象 / 根因):中文(报错、错误、失败、异常、bug、定位、根因、排查、调查、不工作、不生效、跑不通、卡住、死锁、崩溃、闪退、抛异常、重现、复现、为什么不、怎么不、编译失败、装不上、超时、堆栈);英文(error、crash、exception、stack trace、traceback、panic、segfault、fail / fails / failed / failure、hang、deadlock、timeout、ERESOLVE 及类似大写错误码)
+- **🔎 review 强信号**(待决策的方案 / 设计 / 改动):中文(评审、审核、方案、设计、评估、改进、重构、行不行、这样写对吗、可行性、取舍、优化方案、代码评审、设计文档、spec、plan、看看、过一遍、检查、PR、MR);英文(review、design、proposal、spec、plan、refactor、trade-off、PR、MR、lgtm、looks good、blocking on、feedback)
+- 判定:单边命中直通;双边命中或双空 → AskUserQuestion 反问一次,不瞎猜。
 
-**判定**(按顺序):
-1. 只有 diag 命中 → **diag**;只有 review 命中 → **review**。
-2. 双边命中或双边都无 → **AskUserQuestion 反问,不瞎猜**:选项 `诊断 —— 我有个报错/异常/不工作的现象,想定位根因` / `评审 —— 我有个方案/设计/改动,想听异构意见`。
-3. **指代词例外**:单边强信号 + 指代词(刚才/那个/上面/之前/这个/这/那/this/that/above)→ 直接走该边("评审刚才的方案"不可能是诊断)。
+**B. 空或含糊**(为空、超短、或含指代词:刚才/那个/上面/之前/这个/这/那/this/that/above)→ **不定 MODE**:设 `MODE = auto` 直接进第 4 件转派——flow.md 第 0 步的**对象解析器**会从最近对话推断评审对象、模式与背景,一个确认窗打包过目(见 `lib/context-intake.md` 第 0.0 步)。
 
 ## 4. 转派 flow.md
 
-设 `MODE = diag | review`,连同 `OVERRIDE_AGENTS`(若有)、`RESUME_TS`(若有,仅第 2 件续跑时),按 `~/.claude/skills/xcheck/lib/flow.md` 执行。diag 用 `prompts/diag.md` + `prompts/synthesize-diag.md`;review 用 `prompts/review.md` + `prompts/synthesize-review.md`。
+设 `MODE = diag | review | auto`(auto = 空或含糊输入,由 flow 第 0 步解析器落定),连同 `OVERRIDE_AGENTS`(若有)、`RESUME_TS`(若有,仅第 2 件续跑时),按 `~/.claude/skills/xcheck/lib/flow.md` 执行。diag 用 `prompts/diag.md` + `prompts/synthesize-diag.md`;review 用 `prompts/review.md` + `prompts/synthesize-review.md`。
 
 ## 铁律(全套,不打折扣)
 
 - **subagent 只搬运、不评判**(`lib/subagent-carrier.md`);综合只在主会话。
 - **进度只认盘**:阶段完成即勾 PROGRESS.md;恢复不依赖会话记忆。
-- 全链只在三处开口:第 2 件续跑确认、flow 第 0 步摄入确认(仅不自包含输入)、flow 第 9 步停点一问;**其余一律自动推进**。
+- 全链只在三处开口:第 2 件续跑确认、flow 第 0 步对象解析确认(仅空/含糊输入)、flow 第 9 步停点一问;**其余一律自动推进**。
 - 实验**禁改业务代码、禁联网、禁部署**;修订只写新文件,原稿不动。
 - **至少一个非 claude**;全 claude 只标注不拦。
 - 派 subagent 用便宜模型,一条消息并行;成败看退出码,codex 的 MCP/banner/hook 噪声 ≠ 失败。
