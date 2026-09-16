@@ -3,6 +3,22 @@
 All notable changes to `xcheck`. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 本文件记录 xcheck 的所有显著变更。
 
+## [0.12.0] - 2026-09-16
+
+### Changed / 改进
+
+- **Single-gate auto-chain — `/xcheck` is now one trigger, end to end.** The command surface shrinks 5 → 2 (`/xcheck`, `/xcheck-setup`): `/xcheck-diag` / `/xcheck-review` merged into `/xcheck`'s router, and `/xcheck-close`'s close-loop (C0–C5) is absorbed into the main flow as steps 7–10. A review now runs **automatically** from blind fan-out → triage → tier-① read-only verification (✅/❌/❓ with evidence) → tier-② sandbox experiments (all of them, no per-item approval; 300s per-item timeout → inconclusive) and stops exactly once: the **verified three-tier list** + one question — "draft a revision and re-review?" Yes → main session writes `<name>.rev<m>.md` (original untouched) and auto re-reviews (≤2 rounds, then "recommend starting over"). The old four close gates (experiment multiSelect, per-item adjudication, revision adoption, per-round re-review ask) are gone — human control moved from signing every step to deciding on the final result. Synthesis for review is now a compact header (verdicts + one-line overall) instead of the long consensus/divergence essay. Design: `docs/superpowers/specs/2026-09-16-xcheck-single-gate-autochain-design.md`, decision record: `docs/adr/0001-single-gate-autochain.md`, glossary: `CONTEXT.md`.
+- **单停点全自动链——`/xcheck` 一次触发跑到底。** 命令面 5→2(/xcheck、/xcheck-setup):/xcheck-diag、/xcheck-review 并入 /xcheck 路由,/xcheck-close 的闭环(C0~C5)吸收为 flow 第 7~10 步。review 现在**全自动**推进:盲评 → 三分类 → ①类只读查证(✅/❌/❓ 带证据)→ ②类沙箱实验(全跑,不再逐条批准;单条 300s 超时判无定论),只在终点停一次:**已验证三分类清单** + 一问"要起草修订版并自动复审吗?"要 → 主会话写 `<原名>.rev<m>.md`(原稿不动)并自动复审(≤2 轮,超限报"推倒重来")。旧 close 四关卡(实验勾选/逐条拍板/采纳修订/每轮问复审)废除——人的控制权从"每步签字"移到"对最终结果拍板"。review 汇总改紧凑头(裁决一览+总判),不再输出共识/分歧长文。
+- **Progress lives on disk only.** Every stage completion ticks `PROGRESS.md` (stage-granular, replaces `run.md`); terminal states: converged / start-over / no-fix-needed / user-aborted / diag-done. Crash mid-chain → re-trigger `/xcheck` → it detects the unfinished run, asks "resume or start new", and continues from the first unticked stage. Machine discovers, human decides. Old-format artifacts (run.md, no PROGRESS.md) are treated as finished and ignored.
+- **进度只认盘。** 每阶段完成即勾 `PROGRESS.md`(阶段粒度,取代 run.md);终态:收敛/推倒重来/无需修订/用户中止/完成(diag)。链中途崩 → 重敲 /xcheck → 自动发现未完成链、人工确认"续还是新开"、从第一个未勾阶段续跑。机器发现、人决定。旧版产物(run.md、无 PROGRESS.md)视为已完成,忽略。
+- **Selection simplification.** Agent selection is now `--agents` > `default_agents` > hard error telling you to set a default (`/xcheck-setup default`). The interactive multi-select UI and its form-discipline rules are deleted — rare paths error out loudly instead. Missing agents degrade to the intersection with a visible note, no popup.
+- **选集简化。** 选集规则:`--agents` > `default_agents` > 报错提示先设默认集。交互式多选 UI 及其表单纪律删除——罕见路径大声报错。缺装降级为交集 + 注明,不弹窗。
+
+### Removed / 移除
+
+- `/xcheck-diag`, `/xcheck-review`, `/xcheck-close` skills and `xcheck/lib/close-flow.md`. diag mode itself is unchanged (ends at synthesis + triage; no verification chain, no gate question) — routed automatically by `/xcheck`.
+- /xcheck-diag、/xcheck-review、/xcheck-close 三个 skill 与 `xcheck/lib/close-flow.md` 删除。diag 模式行为不变(止于汇总+三分类;无验证链、无停点问题),由 /xcheck 自动路由。
+
 ## [0.11.0] - 2026-08-25
 
 ### Changed / 改进
