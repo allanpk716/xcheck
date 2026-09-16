@@ -3,6 +3,13 @@
 All notable changes to `xcheck`. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 本文件记录 xcheck 的所有显著变更。
 
+## [0.13.1] - 2026-09-16
+
+### Changed / 改进
+
+- **Discussion-type resolutions now materialize as a real consensus doc.** When the object resolver falls through to discussion-type (grilling ended with no file written), the solidified proposal no longer lives only inside `.xcheck/<ts>/proposal.md` — the confirm popup states where it will land (`docs/superpowers/specs/<date>-<topic>-consensus.md`), and confirming writes it there. `source` becomes that path, so gate-approved revisions land **next to the consensus doc** instead of buried in the audit directory. Lazy by design: no file is ever created unless `/xcheck` is actually triggered and confirmed.
+- **讨论型解析物化为正经共识文档。** 对象解析器落到讨论型(grilling 完没写文件)时,固化稿不再只活在 `.xcheck/<ts>/proposal.md`——确认窗写明将存为 `docs/superpowers/specs/<日期>-<主题>-consensus.md`,确认即落盘;`source`=该路径,停点后的修订版落在**共识文档旁边**而非审计目录深处。懒落盘:不敲 `/xcheck` 或不确认,永远不产生文件。
+
 ## [0.13.0] - 2026-09-16
 
 ### Added / 新增

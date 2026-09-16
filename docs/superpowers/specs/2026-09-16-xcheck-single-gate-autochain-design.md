@@ -213,7 +213,7 @@ prev = -           # 复审链上一环 ts;首轮 -
 **设计**:壳路由二分——自包含输入走关键词词表(词表补 spec/审核/看看/过一遍/检查);空/含糊输入设 `MODE = auto` 转派。flow 第 0 步**对象解析器**(context-intake.md 0.0 重写)按阶梯解析:
 
 1. **文件型**:本会话 Write/Edit 过的方案类文件(最新/最常引用)→ 对象=路径,source=路径(修订落原文件同目录);跨会话兜底扫 `docs/superpowers/{specs,plans}/`、`docs/` 近 24h 最新 .md。
-2. **讨论型**:无文件但对话是方案讨论 → 固化(中性 proposal + 用户原话事实清单),source=inline。
+2. **讨论型**:无文件但对话是方案讨论 → 固化(中性 proposal + 用户原话事实清单);确认即落盘为 `docs/superpowers/specs/<YYYYMMDD>-<主题>-consensus.md`,source=该路径(修订落它旁边;初版为 source=inline 落 .xcheck,0.13.1 改)。
 3. **诊断型**:对话在追报错 → diag,摘录事实清单。
 4. **都命中不了** → 反问。
 

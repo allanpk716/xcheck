@@ -44,6 +44,8 @@ Agent selection: `--agents` flag > `default_agents` (set via `/xcheck-setup defa
    ├ diag ──→ smoke → fan-out → collect → synthesize + triage → present ("you decide") → done
    │
    └ review → resolve (vague) or silent background pull (self-contained)
+              discussion-type: the solidified proposal lands as
+              docs/superpowers/specs/<date>-<topic>-consensus.md — revisions go next to it
         → smoke → fan-out (blind, parallel) → collect → compact header → triage
         → verify ① (read-only, auto) → experiments ② (sandbox, auto)
         ══ SINGLE GATE: verified three-tier list + one question ══
@@ -119,7 +121,7 @@ docs/adr/0001-single-gate-autochain.md   # why the single-gate redesign
 
 `xcheck` 是一组全局 [Claude Code](https://code.claude.com/) skill。你给它一个方案/设计/代码改动(或一个 bug),它跑**一条自动链**:
 
-1. **(输入含糊或为空)**对象解析——自动锁定本会话刚写/刚讨论的 spec、plan 或设计文档(纯讨论则固化成 proposal),推断 review 还是 diag,把**对象+模式+你的背景原话打包成一个确认窗**过目;自包含输入(路径/贴文/完整报错)直接走,静默带背景。
+1. **(输入含糊或为空)**对象解析——自动锁定本会话刚写/刚讨论的 spec、plan 或设计文档(纯讨论则固化成 proposal,**确认时落盘为 `docs/superpowers/specs/<日期>-<主题>-consensus.md`**,修订落它旁边),推断 review 还是 diag,把**对象+模式+你的背景原话打包成一个确认窗**过目;自包含输入(路径/贴文/完整报错)直接走,静默带背景。
 2. **检测**本机 AI agent CLI 并逐家**冒烟预检**(≤60s 读文件回显)——坏家在 fan-out 前剔除。
 3. **并行派发**,每家一个隔离 subagent——**盲评**,互不可见;agent 自己读**内容文件**,prompt 只是 ≤2KB 指令层。
 4. **紧凑头汇总**(各家裁决一行 + 总判一两句)+ **三分类**:①可直接证实 / ②可实验验证 / ③存疑仅参考。
