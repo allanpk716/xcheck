@@ -3,6 +3,21 @@
 All notable changes to `xcheck`. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 本文件记录 xcheck 的所有显著变更。
 
+## [0.14.0] - 2026-09-16
+
+### Changed / 改进
+
+- **Plain-language verdict delivery — the merged review now answers "can I proceed?"** Root cause of the "I can't tell whether to push forward" feedback: every deliverable talked about the *process* (triage tiers, verdict enums, bare item numbers), never about your proposal. New principle: **chat speaks human, files keep the machine ledger.** Step 9 assembles a mechanical **verdict block** at the top of `SUMMARY.md` — status line (✅ 可推进 / ⚠️ 先修订再推进, decided solely by must-fix count), must-fix items in full (`#n [source][severity·type] one-liner — evidence`), per-agent verdicts, signal, stats — and renders it in chat as plain sentences about *your* plan: "方案能用,但有 N 个问题已经查实,建议改完再动手——改不改你定", each must-fix with who raised it and the evidence, refuted items ("查过,不用理"), and **watch items** (tier-③ + inconclusive tier-②, each with a development-time trigger and a "stop and report, don't silently work around" action). The full SUMMARY dump in chat is gone; numbering/enum/①②③ live only in SUMMARY.md. Design: `docs/superpowers/specs/2026-09-16-xcheck-verdict-delivery-design.md`.
+- **结论人话交付——合并评审终于回答"能不能推进"。** "看不懂该不该推进"的根因:交付物全在讲流程自己(三分类、enum、裸编号),没有一句在讲你的方案。新原则:**对话说人话,文件留机器账。** 第 9 步在 SUMMARY.md 顶部机械拼装**结论区**——状态行(✅ 可推进 / ⚠️ 先修订再推进,只由必改数决定)、必改项全文(`#n [来源][严重度·类型] 一句话 —— 证据`)、各家裁决、信号、统计——对话里渲染成人话:"方案能用,但有 N 个问题已经查实,建议改完再动手——改不改你定",每条必改带谁提的+证据,证伪条目"查过,不用理",**开发时要盯**(③全部+②无定论,每条带触发点与"命中:停下反馈,别默默绕过")。对话不再平铺 SUMMARY 全文;编号/enum/①②③只活在 SUMMARY.md。
+- **Numbering & severity are now defined, not implied.** triage.md numbers tier-①② items in one global serial (`#1、#2…`, tier-③ unnumbered) and preserves each source review's severity tag (`[高·bug]`-style, `[未标]` fallback) — the must-fix references (`#1、#3`) finally point at something. The synthesis one-liner becomes a **three-pattern verdict** (focused consensus / split opinions / one-sided) with explicit DISAGREE count, feeding the verdict block's signal line.
+- **编号与严重度从隐含变定义。** triage.md 给①②类条目全流水编号(`#1、#2…`,③不编号),并保留来源评审的严重度标签(`[高·bug]` 式,丢标兜底 `[未标]`)——必改引用的 `#1、#3` 终于有处可指。汇总总判改**三定式**(焦点共识/意见分裂/一边倒)+ 显式 DISAGREE 计数,喂给结论区信号行。
+- **Broadcast discipline: the chain tells you what you owe at every moment.** Steps 4–8 broadcast one or two human lines each, marked "无需操作" (e.g. "✓ 3/3 家返回,正在逐条核实,这几分钟不用你做任何事"); details land on disk only. The only question in the whole chain is the gate, and it now carries the count: "要我把这 N 个问题改了、再自动评一轮吗?"
+- **播报纪律:链在每个时刻告诉你现在欠什么。** 第 4~8 步各播一两行人话并标"无需操作"(如"✓ 3/3 家返回,正在逐条核实,这几分钟不用你做任何事"),明细只落盘;全链唯一问句是停点,且带数量:"要我把这 N 个问题改了、再自动评一轮吗?"
+- **Review appendix — verified findings travel with your plan.** When a chain reaches a conclusionary terminal state (converged / start-over / no-fix-needed / user-declined) and the source was a file, an appendix section is written to the **end of the reviewed document** (idempotent per-ts rewrite, written *before* the terminal state is recorded): the plain-language verdict blocks plus revision path and artifacts dir, headed by "评审参考,以实际执行为准" — reference material for development, but "stop and report on watch items" is an action, not a reference. Inline (pasted) sources skip it with an honest note. The original-untouched iron rule is rescoped: original *text* stays untouched; the end-of-doc appendix is the sole exception.
+- **评审附录——已验证的发现跟着方案走。** 链达成结论性终态(收敛/推倒重来/无需修订/用户不修)且 source 为文件时,在**被评文档文末**追加附录节(按 ts 幂等重写,先写附录再记终态):人话版全部区块 + 修订版路径 + 产物目录,节首声明"评审参考,以实际执行为准"——是开发参考,但"撞上关注项停下反馈"是动作不是参考。贴文评审诚实跳过并说明。原稿不动铁律改口径:正文永不动,文末附录是唯一例外。
+- **New terminal state `用户不修`.** Declining revision with must-fix items open used to be recorded as `无需修订` — a lie the verdict block would have exposed. `无需修订` is now reserved for genuinely-empty round-0 results; must-fix empty **after ≥1 revision rounds** reads `收敛(m 轮修订)` (fixed clean, not "nothing to fix"); declined-with-must-fix ends as `用户不修`. Terminal enum is now six values (the previously undocumented `完成(diag)` included — glossary drift fixed).
+- **新增终态 `用户不修`。** 必改非空却答"不要"过去记 `无需修订`——结论区一置顶这个谎就藏不住。`无需修订` 只留给 round 0 的真空结果;**修订 ≥1 轮后必改清零**记 `收敛(m 轮修订)`(修干净了,不算"无需");拒修结束记 `用户不修`。终态枚举六值(补记此前未入表的 `完成(diag)`,修词汇漂移)。
+
 ## [0.13.1] - 2026-09-16
 
 ### Changed / 改进
