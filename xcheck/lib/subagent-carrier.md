@@ -27,6 +27,8 @@ bash ~/.claude/skills/xcheck/lib/run-agent.sh <AGENT_NAME> <PROMPT_FILE>
 
 用 **Bash 工具的 `run_in_background: true` 参数**启动它,记下返回的 shell/task id。
 
+> ⚠️ **启动后严禁"先结束回合、等通知再来"**:subagent 一旦停止回合且无活跃子任务,harness 立即把你判定为**终态**——后台任务跑完后**不会再唤醒你**,搬运步骤永远不会发生(2026-08-31 实证:两个搬运工停回合等通知,CLI 正常跑完 exit=0 产物落盘,但读 exitcode/搬运结论的步骤无人执行,主会话被迫接管)。正确姿势:启动成功后**在本回合内**立刻进入第 2 步的阻塞等待。
+
 脚本内部机械化完成(你不用管,出问题看产物归因):
 - prompt 预检(缺失/空文件直接拒跑,**严禁空 prompt 去跑 CLI**)+ 清残留(旧 exitcode 不再误判);
 - 按 agents.toml 构造命令(arg 模式 `"$(cat ...)"` 单参数 / stdin 模式 `<` 重定向),启动**前**把实际命令落 `<AGENT_NAME>.cmd.txt`(取证 —— 偶发故障时对出"当时到底执行了什么");
@@ -45,7 +47,7 @@ bash ~/.claude/skills/xcheck/lib/run-agent.sh <AGENT_NAME> <PROMPT_FILE>
 
 ## 第 2 步:等结束,按 exitcode 判定 —— 不要扫输出文本找 error 字样!
 
-用 **TaskOutput / BashOutput**(block=true)阻塞等后台任务结束(不要 sleep 循环忙转)。任务结束后:
+用 **TaskOutput / BashOutput**(block=true,timeout=600000)阻塞等后台任务结束(不要 sleep 循环忙转,**更不要结束回合等通知**)。单次阻塞上限 600 秒,若到时任务仍在跑就**再次调用**同样的 TaskOutput 继续等——外部 CLI 可能要跑几十分钟,反复调用是正常且必需的(每次阻塞调用都在保持你存活)。任务结束后:
 
 1. `cat <AGENT_NAME>.exitcode` —— 唯一权威。
 2. **exitcode 文件缺失**(仅当脚本本身被外部掐断):把 TaskOutput 拿到的 stderr 原文写进 `<AGENT_NAME>.spawn.err`,按失败返回 —— 这是 wrapper 层故障的唯一证据。

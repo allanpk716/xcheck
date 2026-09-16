@@ -11,7 +11,7 @@
 #
 # 默认 agent 集: 设了之后 /xcheck 直接拿这组跑,跳过每次勾选。
 # 字段 default_agents = ["claude", "codex", ...](名字须对得上下面 [agents.<name>] 的 key)。
-# 字段缺失/空 = 未设默认 → 每次运行弹多选(出厂默认)。
+# 字段缺失/空 = 未设默认 → /xcheck 报错停住,提示先设默认集(出厂默认)。
 # 用 /xcheck-setup default [a,b,c | --clear] 查看/设置/清空。
 
 [defaults]
@@ -34,7 +34,10 @@ installed_check = "codex"
 # codex exec 直接拒绝: "Not inside a trusted directory and --skip-git-repo-check
 # was not specified."(exit 1)。评审对象常在多个平级仓库甚至非仓库目录,xcheck
 # 不应被 git 边界卡住,故常带此 flag。
-run_cmd         = "codex exec --skip-git-repo-check -"   # reads prompt from stdin
+run_cmd         = "codex exec --skip-git-repo-check -s danger-full-access -"   # reads prompt from stdin
+# ^ 2026-09-06: codex-cli 0.153.0 在 Windows 非交互模式下, read-only/workspace-write 沙箱全部
+#   "blocked by policy" 拒绝进程创建(连 pwd 都拦, 读文件必超时); 老版本无此层。须全权档才能
+#   参评(冒烟+用户批准实证)。升级 CLI 后可尝试降回默认档重测。
 input_mode      = "stdin"
 needs_timeout   = false
 timeout_sec     = 2700
