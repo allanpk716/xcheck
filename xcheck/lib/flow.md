@@ -1,246 +1,225 @@
-# xcheck 共享执行流程(mode = diag | review)
+# xcheck 自动链执行流程(mode = diag | review)
 
-主会话(你)按**第 0 步(可选摄入)+ 5 步**执行。`$ARGUMENTS` 是用户输入的内容。mode 由调用你的入口 skill 指定(diag / review)。**这一份流程是 /xcheck-diag、/xcheck-review、/xcheck 共用的编排大脑 —— 严格按步骤走,不跳步。**
+主会话(你)执行一条**自动链**:第 0 步(可选摄入)+ 第 1~9 步;停点答"要"才有第 10 步(修订+复审)。壳(xcheck/SKILL.md)已设定:`MODE`(diag|review)、`OVERRIDE_AGENTS`(可选)、`RESUME_TS`(可选 = 恢复模式)。**严格按步骤走,不跳步。**
 
----
+**进度只认盘(铁律)**:每阶段完成即在 `<cwd>/.xcheck/<ts>/PROGRESS.md` 打勾(格式见文末)。会话崩了/中断,用户重敲 `/xcheck`,壳检测未完成链、经用户确认后续跑——恢复与排障的唯一依据是这个文件,不依赖任何会话记忆。
 
-## 第 0 步:上下文摄入(可选)
-
-当 `$ARGUMENTS` 是指代性 / 简短输入(如"诊断刚才那个")、**不自包含**时,先按 `~/.claude/skills/xcheck/lib/context-intake.md` 执行摄入:切最近对话 → 派摘录 subagent(haiku)摘客观事实 → 用户逐条确认 → 用确认后的事实清单落内容文件 `input.md`(diag)/ `proposal.md`(review)(见 `lib/context-intake.md` 第 0.5 步)。
-
-- **自包含输入**(完整报错栈 / 设计文档 / 文件路径)→ **跳过**摄入,直接用 `$ARGUMENTS`,进第 1 步。但跳过摄入 ≠ 不带背景:主会话仍**零往返静默扫**最近对话,摘与输入直接相关的用户原话,交给第 3 步落 `context.md`(见 `lib/context-intake.md` 第 0.6 步),并在对话里明说一句;没摘到就不建。
-- 摄入若运行,已创建 `<cwd>/.xcheck/<ts>/` 目录 → **第 3.2 步复用这个 `<ts>`,不要重复建**。
-- 触发判定 / 摘录 subagent / 逐条确认 / 退回反问 / 填槽的细节全在 `lib/context-intake.md`。
+**停点纪律(铁律)**:全链只有三处开口等用户——① 壳的"续旧的还是开新的"(仅当盘上有未完成链);② 第 0 步摄入确认(仅当输入不自包含);③ 第 9 步停点一问。**其余一切(检测/冒烟/派发/汇总/三分类/查证/实验)自动推进,不问、不停、不等批准。**
 
 ---
 
-## 第 1 步:自动检测可用 agent
+## 恢复模式(RESUME_TS 存在时,最优先)
 
-跑:
-```
-bash ~/.claude/skills/xcheck/lib/detect.sh
-```
-- stdout = 已安装可选的 agent(每行 `name \t installed_check \t installed`)。stderr = 已登记但未装的(每行 `... \t missing`)。
-- 数 stdout 里的 agent 数。
-  - **若已装 < 2 个**:告诉用户装的太少(异构至少要 2 个、且至少 1 个非 claude),建议先 `/xcheck-setup` 核实,然后**停**,不继续。不要硬跑单 agent。
-- **记 `INSTALLED`** = stdout 里所有已装 agent 的名字列表(小写,与 agents.toml key 一致),供第 2 步取交集用。
+1. 读 `<cwd>/.xcheck/<RESUME_TS>/PROGRESS.md`;读不到 → 报"PROGRESS.md 不存在,无法续跑",停。
+2. 从头部读出 `mode` / `selected` / `source` / `round` / `prev`。
+3. **当前 ts = RESUME_TS**(不新建目录)。阶段清单里已勾的跳过;从**第一个未勾阶段**起,按本文对应步骤整段重做。
+4. 用户已答的决策**不跨恢复记忆**——停点(gate)未勾,恢复时重新问;摄入(intake)已勾,不再问。
+5. 恢复不再弹"续还是新开"(壳已问过)。
 
-## 第 1.5 步:冒烟预检(SELECTED 定下后、fan-out 前,每家 ≤60 秒)
+## 第 0 步:摄入(可选)
 
-先备好两个固定冒烟文件(一轮一次):
+`$ARGUMENTS` 是指代性/简短输入(如"评审刚才那个")、**不自包含**时,按 `~/.claude/skills/xcheck/lib/context-intake.md` 执行:切最近对话 → 派摘录 subagent(haiku)摘客观事实 → 用户逐条确认 → 确认后的事实清单落内容文件 `input.md`(diag)/ `proposal.md`(review)。
 
+- **自包含输入**(完整报错栈/设计文档/文件路径)→ 跳过摄入直接用 `$ARGUMENTS`。但跳过 ≠ 不带背景:仍**零往返静默扫**最近对话,摘直接相关的用户原话落 `context.md`(`lib/context-intake.md` 第 0.6 步),对话里明说一句;没摘到就不建。
+- 摄入若运行,已建 `<cwd>/.xcheck/<ts>/` → 后续**复用这个 ts**,不重复建。
+- 完成后勾 PROGRESS:`intake`(跳过摄入也勾)。
+
+## 第 1 步:检测 + 定选集 + 初始化 PROGRESS
+
+1. 跑 `bash ~/.claude/skills/xcheck/lib/detect.sh`。stdout = 已装 agent(每行 `name \t installed_check \t installed`);stderr = 已登记未装。**已装 < 2** → 告诉用户太少(异构至少 2 家、≥1 非 claude),建议 `/xcheck-setup`,**停**。
+2. **初始化 PROGRESS.md**(摄入没建目录时才建):`<cwd>/.xcheck/<YYYYMMDD-HHMMSS>/`(本地时间),写头部(格式见文末;`selected`/`source` 先留待定,本步与 3.1 步补写)。
+3. **定候选集**(一条道,无弹窗):
+   - `OVERRIDE_AGENTS` 非空(壳已校验名字)→ 候选 = 它。
+   - 否则读 `~/.claude/skills/xcheck/agents.toml` 的 `[defaults].default_agents`:存在且非空 → 候选 = 它;坏名(不在 `[agents.*]`,toml 被手改坏)**防御剔除**后用剩余;剔除后空 → 报错停。
+   - 都没有 → **报错停住**:"未设默认集也没敲 --agents。先跑 `/xcheck-setup default <a,b,c>` 设默认集,再 /xcheck。"**不弹多选。**
+4. 取 `SELECTED = 候选 ∩ INSTALLED`:缺员 → 用交集,输出注明"默认集里 <缺的名> 当前未装/未登录,本轮用 <交集>";交集 < 2 家 → 停。
+5. 同构(全 claude 或 <2 家)→ **不拦**,第 9 步 SUMMARY 顶部标注 "⚠️ 本次为同构,异构价值未体现"。
+6. 候选集写进 PROGRESS 的 `selected`(冒烟后更新为幸存者),勾 `detect`。
+
+## 第 2 步:冒烟预检(SELECTED 每家 ≤60s)
+
+1. 备两个固定文件(一轮一次;第二条 printf 的 `<cwd>` 代入实际绝对路径、正斜杠):
 ```
 mkdir -p <cwd>/.xcheck
 printf '西瓜47' > <cwd>/.xcheck/smoke.txt
 printf '读文件 <cwd>/.xcheck/smoke.txt(绝对路径、正斜杠),原样回复文件里的内容,不要加别的字。\n' > <cwd>/.xcheck/smoke-prompt.txt
 ```
-
-(第二条 printf 里的 `<cwd>` 记得代入实际绝对路径、正斜杠形式。)
-
-对 SELECTED 里每家**用与实跑完全相同的机制**跑这条小 prompt:
-
+2. 对 SELECTED 每家,主会话**前台**跑(阻塞 ≤~75s,远在前台 600s 上限内):
 ```
 bash ~/.claude/skills/xcheck/lib/run-agent.sh <name> <cwd>/.xcheck/smoke-prompt.txt --timeout 60
 ```
+3. 判定(产物落 `.xcheck/` 根):`.xcheck/<name>.exitcode` 为 **0** 且 `.xcheck/<name>.raw.stdout` 含 `西瓜47` → 可用(CLI 活性 ✓ + 读文件能力 ✓ + 传参机制 ✓)。**其它**(124 超时;65/66/67 脚本层故障;非零 CLI 码 = 401 欠费/未登录/损坏;exit 0 但没有 `西瓜47` = 非交互读不了文件)→ 剔除,告知用户"<name> 预检失败:<exitcode + run.log/stderr 末行>,本轮跳过",落 `<cwd>/.xcheck/<name>.failed.md`。
+4. 剔除后 <2 家 → 按第 1 步同款话术停。**幸存者 = 最终 SELECTED**,更新 PROGRESS 的 `selected`,勾 `smoke`。
 
-**主会话前台直接跑**(脚本阻塞 ≤~75 秒,远在前台 600 秒上限内)。判定看产物(全落在 `.xcheck/` 根,即 smoke-prompt.txt 同目录):
+> 冒烟必须带读文件、必须走 run-agent.sh(与实跑同机制):第 3 步起方案全文靠 agent 自己读文件,读不了文件的家整轮只能产空评,必须在 fan-out 前拦下;预检与实跑同机制才闭合"预检绿 ≠ 实跑绿"盲区(2026-08-15 pi 401 实证)。
 
-- `.xcheck/<name>.exitcode` 为 **0** 且 `.xcheck/<name>.raw.stdout` 含 `西瓜47` → 该家可用(CLI 活性 ✓ + 读文件能力 ✓ + 传参机制 ✓),进第 3 步。
-- **其它**(124 超时;65/66/67 脚本层故障;其它非零 CLI 码:401 欠费 / 未登录 / CLI 损坏 / 权限拒绝…;或 exit 0 但回复里没有 `西瓜47` = 非交互模式读不了文件) → 该家剔除,告知用户"X 家预检失败:<原因摘要:exitcode + run.log/stderr 末行>,本轮跳过",落 `<cwd>/.xcheck/<name>.failed.md`,其余家继续。剔除后若剩 < 2 家,按第 1 步同款话术停下。
+## 第 3 步:备料 + 并行派发
 
-> 为什么预检必须带读文件:第 3 步起 prompt.txt 只含指令、方案/问题全文靠评审 agent **自己读文件**(见 3.1 两层分离);读不了文件的家跑完整轮也只能产出空评,必须在 fan-out 前拦下。预检顺带验 CLI 活性(2026-08-15 实证:pi 账户欠费 401 直到 fan-out 后搬运工失败才暴露,整轮浪费)与 codex 的 `--skip-git-repo-check` flag(见 agents.toml)。为什么必须走 run-agent.sh 而不是把 prompt 直接内联当参数:冒烟要测的就是**实跑机制**(文件读入 + 传参路径),内联直传测不到故障面 —— 0.10 及之前"预检绿 ≠ 实跑绿"的形态盲区由此闭合。
+### 3.1 内容层落盘(两层分离,全文绝不进 prompt)
 
-## 第 2 步:定 SELECTED(默认集 / --agents / 多选 三分支)
-
-先定**候选集 CANDIDATES**(优先级从高到低):
-
-1. 若壳传来了 `OVERRIDE_AGENTS`(用户敲了 `--agents a,b,c` 且 token 非空)→ `CANDIDATES = OVERRIDE_AGENTS`。
-2. 否则读 `~/.claude/skills/xcheck/agents.toml` 的 `[defaults].default_agents`:字段存在且非空 → `CANDIDATES = default_agents`。
-3. 两者都没有 → `CANDIDATES = null`(走分支 A)。
-
-**坏名处理(定 CANDIDATES 时)**:
-
-- CANDIDATES 来自 `OVERRIDE_AGENTS` 且**有名字不在 agents.toml 的 `[agents.<name>]`** → **报错停住**,打印"名字 X 不在 agents.toml;可用 agent:<列出所有 [agents.*] key>",不继续(用户显式指令,笔误立即停)。
-- CANDIDATES 来自 `default_agents` 且有坏名(toml 被手改坏)→ **防御性剔除**该名,继续(不崩)。
-- **CANDIDATES 剔除后变空**(默认集整组都被改坏)→ 视同 `null`,走分支 A(全量多选),别让流程带空集进第 3 步。
-
-然后取交集 `INTER = CANDIDATES ∩ INSTALLED`,按分支走:
-
-- **分支 A · CANDIDATES 为 null**(未设默认、也没 --agents):沿用旧行为。把 INSTALLED 列成 `AskUserQuestion(multiSelect: true)` 让用户挑,问题文本必须原样包含:
-
-  > ⚠️ 至少选一个非 claude(如 codex / opencode / kimi),否则全是 Claude 同构,等于自己审自己。
-
-  **表单纪律(硬规则)**:AskUserQuestion 每题上限 **4 个选项**、一次调用最多 **4 题**。INSTALLED ≤4 → 一题,一个 agent 一个选项;>4 → 按固定顺序切成多题(仍超再分多次调用),**绝不把多个 agent 合并进一个选项**。选项 label = agent 名原样(不加代号/注释/理由),说明性内容放 description。
-
-  选完全是 claude 系 → 再用 AskUserQuestion 确认一次 "确定只要 claude 同构吗?(不推荐)",仍坚持就继续。`SELECTED` = 选中的(小写)。
-
-- **分支 B · CANDIDATES 非空且 CANDIDATES ⊆ INSTALLED**(全装了):**跳过弹窗**,直接 `SELECTED = CANDIDATES`。
-
-- **分支 C · CANDIDATES 非空但有缺失(CANDIDATES ⊄ INSTALLED)**:
-  - 若 `INTER` 为空(候选集整组都没装)→ 直接走分支 A(别弹个只剩"重新选"的空壳)。
-  - 否则弹 `AskUserQuestion`(**单选**,非 multiSelect),两选项:
-    - 选项 1:`用剩余默认集跑(<列出 INTER 里的名字>)` → `SELECTED = INTER`
-    - 选项 2:`重新选(弹多选)` → 走分支 A 的完整多选(列所有 INSTALLED,可勾候选集之外的)
-  - 弹窗文本写清"候选集里有 X 家当前未装/未登录:<CANDIDATES − INSTALLED>"。
-
-**异构校验(SELECTED 定下之后)**:
-
-- 分支 B、分支 C 选 1:若 `SELECTED` 同构(全 claude 或 < 2 个)→ **不拦**,但在第 5 步 SUMMARY 顶部记标注 "⚠️ 本次为同构诊断/评审,异构价值未体现"。
-- 分支 A:维持上面"全 claude 二次确认"的旧逻辑。
-- `--agents` 同构:同分支 B,只标注不拦。
-
-记 `SELECTED` = 最终选中的 agent 名列表(小写,与 agents.toml key 一致)。进第 3 步。
-
-## 第 3 步:准备 prompt + 并行派 subagent
-
-### 3.1 备料:内容层落盘 + 指令层套模板(两层分离,全文绝不进 prompt)
-
-**先定目录**:复用第 0 步摄入时已建的时间戳目录 `.xcheck/<ts>/`;**若第 0 步跳过了摄入**,在此生成 `<YYYYMMDD-HHMMSS>/`(本地时间,例 `20260809-143012`)。以下文件全进这个目录(`.xcheck/` 已在 .gitignore 里)。
-
-**内容层(大件,评审 agent 自己读;主会话只搬路径、不搬全文)**:
+复用已有 ts 目录,以下文件全进 `.xcheck/<ts>/`(已 gitignore):
 
 | 内容 | 文件 | 怎么落 |
 |---|---|---|
-| 方案全文(mode=review) | `proposal.md` | `$ARGUMENTS` 是文件路径 → 用 Bash `cp` 复制成快照(**内容零 token 过主会话**);贴文 / 第 0 步摄入产物 / 固化方案 → 主会话 Write 一次 |
-| 问题全文(mode=diag) | `input.md` | 同上(cp 或 Write) |
-| 背景(可选,两 mode 共用) | `context.md` | 用户额外给了上下文 / 摄入事实清单 / 第 0.6 步静默扫摘到原话 → Write;没有 → 不建此文件 |
+| 方案全文(review) | `proposal.md` | `$ARGUMENTS` 是文件路径 → Bash `cp` 成快照(内容零 token 过主会话);贴文/摄入产物 → 主会话 Write 一次 |
+| 问题全文(diag) | `input.md` | 同上 |
+| 背景(可选,两 mode 共用) | `context.md` | 用户额外上下文/摄入事实清单/零往返摘录 → Write;没有不建 |
 
-> 为什么落**快照**而不是让 agent 直接读原文件:原文件可能在评审跑的中途被改;快照固定本轮评审对象,`.xcheck/<ts>/` 也自带完整审计留底。
+**source 判定**(写进 PROGRESS):输入是文件路径 → 记其绝对路径;贴文/固化文本 → `inline`。
 
-**指令层(小件,≤2KB)**:
+> 落快照而非直读原文件:原文件可能评审中途被改,快照固定本轮对象、留审计底。
+> 为什么拆两层:全文内联进 prompt,arg 模式撞 **Windows 32767 字符命令行上限**;全文 Read 进主会话再 Write 烧双倍 token。拆开后指令层恒 ≤2KB,文件输入不过主会话。
 
-- **mode=diag** → 读 `~/.claude/skills/xcheck/prompts/diag.md`,把 `{{INPUT_PATH}}` 替换成 `input.md` 的**绝对路径**;有 `context.md` 就填 `{{CONTEXT_PATH}}`,没有就把【上下文】块整块删掉。
-- **mode=review** → 读 `~/.claude/skills/xcheck/prompts/review.md`,`{{PROPOSAL_PATH}}` / `{{CONTEXT_PATH}}` 同 diag 规则。
-- 填进模板的路径一律**绝对路径 + 正斜杠**(`C:/...` 形式)。
+### 3.2 指令层落盘
 
-> **为什么拆两层**:方案全文内联进 prompt 时,arg 模式 4 家(claude/opencode/pi/kimi)的 prompt 经 `"$(cat ...)"` 变成单个命令行参数,大方案撞 **Windows 32767 字符命令行上限**;全文 Read 进主会话再 Write 出去也烧双倍 token。拆开后 arg 恒有界(指令 ≤2KB),文件输入全程不过主会话上下文。
+- **diag** → 读 `~/.claude/skills/xcheck/prompts/diag.md`,`{{INPUT_PATH}}` 替换成 `input.md` 的**绝对路径**;有 `context.md` 就填 `{{CONTEXT_PATH}}`,没有把【上下文】块整块删掉。
+- **review** → 读 `~/.claude/skills/xcheck/prompts/review.md`,`{{PROPOSAL_PATH}}` / `{{CONTEXT_PATH}}` 同规则。
+- 填的路径一律**绝对路径 + 正斜杠**(`C:/...`),写到 `<cwd>/.xcheck/<ts>/prompt.txt`。
 
-> **固化 proposal 时的自代入陷阱**:当 controller 把多轮 brainstorming 讨论固化成自包含 proposal(走 context-intake.md 的"方案型指代"例外)时,**避免在 proposal 正文里写会让被评 agent 自代入的背景** —— 否则被评 agent 可能把自己当成"该跑评审流程的人",去加载 skill / 找别的 agent(实测会触发权限弹窗失败)。需要的历史上下文用**中性陈述**,只讲事实、不带触发词:
-> - ❌「codex 上轮抓到口令轮换 bug」「三家异构 agent 都给了 SUGGEST_CHANGES」
-> - ✅「本方案曾有一个口令轮换相关缺陷,已通过改用明文备份解决」「这是该方案的第二版」
->
-> 讲清楚"发生过什么"即可,别点名 agent / 别写"异构评审"这类会被误读为编排指令的词。
+> **固化 proposal 的自代入陷阱**:proposal 正文别写会让被评 agent 自代入的背景(点名 agent、写"异构评审"等触发词),历史上下文用**中性陈述**("本方案曾有一个 X 缺陷,已通过 Y 解决"),否则被评 agent 可能把自己当成"该跑评审流程的人"(实测触发过权限弹窗失败)。
 
-### 3.2 落盘指令层
+### 3.3 一条消息并发派 |SELECTED| 个 subagent
 
-把 3.1 填好的**指令层**写到:
-```
-<cwd>/.xcheck/<ts>/prompt.txt   # 用绝对路径;Windows 下一律写正斜杠 C:/... 形式
-```
-(`.xcheck/` 已在 .gitignore 里,不会污染仓库。)
-
-### 3.3 (已机械化,无需取参)
-
-run-agent.sh 自己读 `~/.claude/skills/xcheck/agents.toml` 解析每家的 `run_cmd` / `input_mode` / `timeout_sec`(per-agent 优先,否则取 `[defaults].timeout_sec`;`/xcheck-setup timeout` 可查改)—— 主会话**不再取参、不再构造任何 shell 命令**(2026-08-25 起机械化,消灭偶发拼装故障)。
-
-### 3.4 一条消息里并发派 |SELECTED| 个 subagent(关键)
-
-**在一条消息里** 同时开出 |SELECTED| 个 Agent 工具调用,让它们**并行**跑(不要串行 await)。参考 superpowers 的 `dispatching-parallel-agents`。
-
-每个 subagent 的指令 = `~/.claude/skills/xcheck/lib/subagent-carrier.md` 的**全文**,并在末尾追加该 agent 的填好参数:
+**在一条消息里**同时开出全部 Agent 工具调用并行跑(不要串行 await)。每个 subagent 的指令 = `~/.claude/skills/xcheck/lib/subagent-carrier.md` 的**全文** + 末尾追加:
 
 ```
 AGENT_NAME = <name>
 PROMPT_FILE = <cwd>/.xcheck/<ts>/prompt.txt   # 绝对路径;正反斜杠皆可,run-agent.sh 自动转正斜杠
-RESULT_SHAPE = <diag 结构 | review 结构>   # 由本 skill 的 mode 决定
+RESULT_SHAPE = <diag 结构(根因/证据/置信度/建议) | review 结构(裁决/逐条问题/理由)>
 ```
 
-- **subagent 模型用便宜档(haiku 或 sonnet)** —— 它只是搬运工,不需要重模型。
-- **搬运工第 1 步必须以 `run_in_background: true` 后台启动 `run-agent.sh`** —— 脚本会阻塞到外部 CLI 结束(总时限由脚本兑现),前台直等会被 600 秒上限掐断且结论永久丢失(见 carrier 文档第 1 步的事故注记)。
-- RESULT_SHAPE:
-  - diag 模式 → `diag 结构(根因/证据/置信度/建议)`
-  - review 模式 → `review 结构(裁决/逐条问题/理由)`
+- subagent 用**便宜模型**(haiku/sonnet)——它只是搬运工。
+- 搬运工第 1 步必须 `run_in_background: true` 后台启动 run-agent.sh,并**在本回合内立即阻塞等待**:前台直等会被 600s 上限掐断、结论永久丢失(2026-08-14 codex 事故);停回合"等通知再来"则搬运永不发生(2026-08-31 实证)。详见 carrier 文档。
+- 全部派出后勾 `fanout`。
 
-## 第 4 步:收齐 + 落盘
+## 第 4 步:收齐落盘
 
-等所有 subagent 完成(它们并行跑,你等齐)。每个返回两段(`## <name> 原始输出` + `## <name> 结构化结论`),或超时/失败那一行。
+等所有 subagent 完成(并行跑,等齐)。每个返回两段(`## <name> 原始输出` + `## <name> 结构化结论`)或超时/失败行,逐个拆开落盘 `.xcheck/<ts>/`:
 
-对每个 agent,把内容拆开落盘到 `.xcheck/<ts>/`:
+- `<name>.raw.out` —— 原始 CLI 输出(原样,不洗 ANSI、不删 codex 噪声,留底核查)。
+- `<name>.summary.md` —— 结构化结论。
+- 失败/超时:另写 `<name>.failed.md` 记一行(原因 + 退出码 + stderr 摘要)。
 
-- `<name>.raw.out` —— 该 agent 的**原始 CLI 输出**(从 subagent 回复的"原始输出"段抠出来,原样写,不洗 ANSI、不删 codex 噪声 —— 留底供事后核查)。
-- `<name>.summary.md` —— 该 agent 的**结构化结论**(摘录段)。
-- 失败/超时的 agent:除了上面的 raw.out(若有部分输出),再写一份 `<name>.failed.md` 记一行:超时/失败 + 退出码 + stderr 摘要。
+**不要在这一步做综合判断**。完成后勾 `collect`。
 
-**不要** 在这一步做综合判断。综合在第 5 步。
+## 第 5 步:汇总(主会话)
 
-**落 run.md(闭环元数据)**:本步最后把本次运行元数据写到 `<cwd>/.xcheck/<ts>/run.md`(供 `/xcheck-close` 定位复审 agent 集与判 mode),一行一个字段:
+- **diag** → 读 `~/.claude/skills/xcheck/prompts/synthesize-diag.md`,`{{ALL_CONCLUSIONS}}` 替换成各家 `.summary.md` 内容拼接,按模板输出综合,写 `<cwd>/.xcheck/<ts>/SUMMARY.md`。
+- **review** → 读 `~/.claude/skills/xcheck/prompts/synthesize-review.md`(紧凑头版),`{{ALL_REVIEWS}}` 同上,输出**紧凑头**(各家裁决一览一行 + 总判一两句 + 返回/失败/同构标注)写 SUMMARY.md。**共识/分歧长文不再输出**——逐条细节交给第 6 步三分类。
 
+完成后勾 `synthesize`。
+
+## 第 6 步:三分类
+
+1. 读 `<ts>/` 下**所有** `.summary.md`(**只读 summary,不读 raw.out**);只有 failed/无 summary 的家跳过。
+2. 每家"问题/建议"逐条拆出、标来源(如 `[codex] 这里用了 localStorage 存 token`);LGTM 家不贡献条目,不强行补条。
+3. 读 `~/.claude/skills/xcheck/prompts/triage.md`,`{{ALL_FEEDBACK}}` = 拆条拼接,按模板把每条归三类(兜底:拿不准往更不可信兜,1↔2 归 2、2↔3 归 3、设计不出实验降 3)。
+4. 分级结果**追加**写 SUMMARY.md(三个区块,空类留占位;三类全空输出一行"本轮无可分级反馈")。条目重复(两家说本质相同)各自保留、各标来源,不合并。
+5. **分支**:
+   - **diag 到此为止**:呈现 SUMMARY + 收尾句(第 9 步那句),PROGRESS 终态记 `完成(diag)`,链结束。
+   - **review 且 ①+② 均空**:SUMMARY 补一行"无可验证问题,无需修订",终态记 `无需修订`,呈现 + 收尾句,链结束。
+   - 否则勾 `triage`,进第 7 步。
+
+## 第 7 步:查证①(自动,只读,不问)
+
+对象:SUMMARY 第一类的**每条**。**你(主会话)逐条查**:只读该条"判据"直指的文件/配置/文档,**不展开探索**;条目 >10 可分批派 subagent(便宜模型,只回传证据原文,你裁决)。每条三值,附一行证据(文件:行号,或引文):
+
+- **✅ 证实**(反馈属实)/ **❌ 证伪**(不成立,写明实际是什么)/ **❓ 查无实据**(判据指向处查不到)。
+
+结果并入 SUMMARY ①区块:每条下追加一行 `判定:✅ 证实 —— 证据:src/foo.ts:42`。第一类为空 → SUMMARY 记"无",直接进第 8 步。完成后勾 `verify`。
+
+## 第 8 步:实验②(自动,沙箱,不问)
+
+对象:SUMMARY 第二类的每条(第 6 步已带【验证目的/方法/预期】)。逐条按其【方法】执行:
+
+- **允许**:写临时验证文件(一律 `<cwd>/.xcheck/<ts>/exp/`,留底不删)+ 跑本地测试 / benchmark / 探测命令;单条**超时 300 秒**(Bash 工具 `timeout: 300000`),到点即判"无定论"。
+- **禁止(铁律)**:改业务代码、联网外呼、部署。
+- 每条三值:**成立 / 不成立 / 无定论**(执行失败/超时/环境不满足 → 无定论,记原因,**不阻塞其他条**)。
+
+结果并入 SUMMARY ②区块:每条下追加一行 `结果:成立 —— exp/e1-x.js,输出摘要:…`。第二类为空 → SUMMARY 记"无"。完成后勾 `experiments`。
+
+## 第 9 步:交付 + 停点
+
+1. 组装**必改项** = ①✅ 证实 + ②实验成立的条目编号,追加 SUMMARY 末段:
+   `## 必改项 = ①✅ + ②成立:#1、#3、#5`(空则写 `无`)。勾 `deliverable`。
+2. **呈现 SUMMARY 全文**,并原样输出:
+
+   > **以上是建议,共识 ≠ 正确,最终你拍板。**
+
+3. **停点一问**:
+   - 必改项为空 → **不问**,终态 `无需修订`,链结束。
+   - 否则 AskUserQuestion(单问):"**要起草修订版并自动复审吗?**"
+     - `要 —— 针对必改项写修订版(新文件,原稿不动),自动重跑一轮评审`
+     - `不要 —— 到此结束` → 终态 `无需修订`,链结束。
+
+## 第 10 步:修订 + 复审(停点答"要")
+
+1. **主会话亲写**修订版(你持有全量证据:各家反馈 + 查证 + 实验结果,不 fan-out):
+   - PROGRESS 的 `source` 是文件路径 → 原文件**同目录**写 `<原名>.rev<m>.md`(m = round + 1)。
+   - `source = inline` → 写 `<cwd>/.xcheck/<ts>/proposal.rev<m>.md`。
+   - **原稿一律不动**;diff(原稿 vs 修订版)写入对话呈现。原稿被手改过(diff 对不上)→ 提示用户,以**当前文件**为修订基线,rev 序号顺延。
+   - 修订版正文遵守 3.1 自代入陷阱纪律(中性陈述,不点名 agent)。
+2. **建复审环**:新 `<ts2>/` 目录 + 新 PROGRESS.md(`mode=review`、`prev=<当前ts>`、`round=m`、`source=<rev 文件绝对路径>`、`selected=<旧环 selected ∩ 当前 INSTALLED>`;`OVERRIDE_AGENTS` 若有则直接用它)。当前环勾 `gate`。
+3. **自动复审**:当前 ts 切到 `<ts2>`,从第 1 步重跑到第 9 步——detect/冒烟照跑、PROGRESS 照勾(新环从空勾起)。复审环 selected 有 agent 已卸载 → 用交集 + 注明,不弹窗。
+4. 新一轮到第 9 步:
+   - ①+② 均空 → 终态 `收敛(m 轮修订)`,链结束。
+   - 非空且 m < 2 → 同问(停点一问)再一轮。
+   - **m = 2 仍非空** → 停,报告"**建议推倒重来**:两轮修订后仍存在 N 个可验证问题,疑方案根基缺陷",终态 `推倒重来`。
+
+## 终态收尾(任一终态)
+
+1. PROGRESS.md `## 终态` 段写终态值:`收敛(N 轮修订)` / `推倒重来` / `无需修订` / `用户中止` / `完成(diag)`。
+2. 向用户呈现:终态、修订版路径(若有)、`.xcheck/<ts>/` 产物位置。
+
+## PROGRESS.md 格式
+
+```markdown
+# PROGRESS · <ts>
+mode = review                 # diag | review
+selected = codex, kimi        # 冒烟后幸存的最终选集(冒烟前先记候选集)
+source = C:/…/xxx.md          # 原方案绝对路径 | inline
+round = 0                     # 修订轮次;复审环从 1 起
+prev = -                      # 复审链上一环 ts;首轮 -
+
+## 阶段(完成即打勾)
+- [x] intake                  # 跳过摄入也算完成
+- [x] detect                  # 含选集判定
+- [x] smoke
+- [x] fanout
+- [x] collect
+- [x] synthesize
+- [x] triage
+- [ ] verify
+- [ ] experiments
+- [ ] deliverable
+- [ ] gate                    # 打勾时机:停点已答且(答"不要"链已终态 | 答"要"修订已落盘+复审环已建)
+
+## 终态
+(空 | 收敛(N 轮修订) | 推倒重来 | 无需修订 | 用户中止 | 完成(diag))
 ```
-mode = review            # diag | review
-ts = <ts>
-selected = codex, kimi, opencode   # 本次 SELECTED,逗号分隔小写名
-prompt = <cwd>/.xcheck/<ts>/prompt.txt
-source = <原方案的文件绝对路径 | inline>
-```
 
-`source` 判定:第 3.1 步时 `$ARGUMENTS`(或摄入产物)是文件路径 → 记该路径;是用户贴文/固化文本 → 记 `inline`。
+**恢复语义**:终态非空 = 链完成,永不续跑;终态空 + 有未勾阶段 = 未完成,可从第一个未勾阶段续(壳检测、用户确认)。旧版产物(有 run.md 无 PROGRESS.md)不算未完成,静默忽略。
 
-## 第 5 步:主会话汇总(你做综合判断)
+## 边界与异常
 
-把所有 subagent 带回的**结构化结论**拼起来(`.xcheck/<ts>/<name>.summary.md` 的内容,逐个 agent 一段),填进汇总指令模板:
+| 异常 | 处理 |
+|---|---|
+| 某家 subagent 超时/失败 | 照落 failed.md,链继续;SUMMARY 头部注明"本轮 <name> 未返回,综合基于其余 N 家" |
+| 冒烟后 <2 家 | 停(第 1 步话术),不硬跑单家 |
+| 实验失败/超时/环境不满足 | 该条"无定论",不阻塞其他条 |
+| 停点处用户打断/不答 | PROGRESS 停在 gate(终态空)→ 下次重敲 /xcheck 弹窗 0 可续(重问) |
+| 修订写一半崩 | 旧环 gate 未勾 → 恢复时重问停点;rev 文件已存在 → 提示用户续用或重写 |
+| 全链中途崩 | 已勾阶段成果在盘;重敲 /xcheck → 续跑,不丢盲评结果 |
+| 用户对话里要换 agent 集 | 未派发 → 回第 1 步重定;已派发 → 本轮照跑完,下轮用 `--agents` |
+| 旧版 .xcheck 产物 | 无 PROGRESS.md → 静默忽略,不算未完成 |
 
-- **mode=diag** → 读 `~/.claude/skills/xcheck/prompts/synthesize-diag.md`,把 `{{ALL_CONCLUSIONS}}` 替换成拼接好的各家结论。
-- **mode=review** → 读 `~/.claude/skills/xcheck/prompts/synthesize-review.md`,把 `{{ALL_REVIEWS}}` 替换成拼接好的各家评审。
+## 铁律(全套,不打折扣)
 
-然后**你(主会话)**按该模板输出综合:共识 / 分歧 / 存疑(或各家裁决)+ 综合建议。写到:
-```
-<cwd>/.xcheck/<ts>/SUMMARY.md
-```
-
-最后,把 SUMMARY 内容**呈现给用户**,并**明确收尾**这句(原样输出):
-
-> **以上是建议,共识 ≠ 正确,最终你拍板。**
-
-**铁律**:绝不自动改代码 / 自动合并 / 自动"通过"。xcheck 只提供异构第二意见,**决策权在用户**。
-
----
-
-## 第 6 步:反馈分级(把各家反馈按可验证性归三类)
-
-紧接第 5 步(已写好 `SUMMARY.md` 的"共识/分歧/存疑"段),**你(主会话)**继续做反馈分级,结果**追加**进同一个 `SUMMARY.md`。
-
-### 6.1 收集原料
-
-读 `<cwd>/.xcheck/<ts>/` 下**所有 `<agent>.summary.md`**(第 4 步落盘的结构化结论)。**只读 `.summary.md`,不读 `.raw.out`**(那是噪声留底)。某家只有 `.failed.md` 或没有 `.summary.md` → 跳过那家(第 5 步顶部已注明"本轮 N 家未返回")。
-
-### 6.2 拆条 + 标来源
-
-把每家 summary 里的"问题/建议"逐条拆出来,每条前面标来源,例如:`[codex] 这里用了 localStorage 存 token`。某家只有"LGTM/无意见" → 该家不贡献条目(不强行补条)。
-
-### 6.3 套模板分级
-
-读 `~/.claude/skills/xcheck/prompts/triage.md`,把 `{{ALL_FEEDBACK}}` 替换成"6.2 拆出的所有条目拼接(带 `[来源]` 标注)"。按该模板把每条归入三类:
-
-- **第 1 类 · 可直接证实** —— 查/读/对一下就能判(附一行"判据:可查 X")。
-- **第 2 类 · 可设计实验验证** —— 配轻量方案【验证目的 / 一句话方法 / 预期】。**只设计,绝不执行**(不跑测试、不调工具探测、不改文件)。
-- **第 3 类 · 存疑仅参考** —— 每条尾部加 `⚠️ 未必准确,仅作参考,谨慎采纳`。
-
-**分类兜底**:拿不准往"更不可信"兜(1↔2 模糊归 2;2↔3 模糊归 3;第 2 类某条实验设计不出来 → 降级第 3 类)。
-
-### 6.4 写盘(追加,不覆盖)
-
-把分级结果**追加**到 `<cwd>/.xcheck/<ts>/SUMMARY.md` 末尾(第 5 步的共识/分歧/存疑在前,三类分级在后)。输出格式严格按 `triage.md` 的三个区块;空类留占位(如"第二类:无。" / "第三类:无。"),不省略区块。
-
-**异常**:
-- 三类全空(各家都 LGTM 或全失败)→ 输出一行:`本轮无可分级反馈(各家均未提出问题/建议)。`,不输出空区块。
-- 条目重复(两家说本质相同的问题)→ 各自保留、各标来源,不合并。
-- **第 6 步崩了不影响第 5 步**——第 5 步的 SUMMARY 已落盘,分级是追加,崩了最多缺分级段,不能带走已有汇总。
-
-### 6.5 收尾
-
-第 6 步**不**单独再喊"你拍板"——第 5 步结尾那句"共识≠正确,你拍板"已覆盖整个 SUMMARY。第 6 步只是给那段话补"可信度依据"。呈现给用户即结束。
-
-**mode=review 时**,呈现完再追加一句(原样输出):
-
-> **要闭环处置这些反馈(逐条证实 / 执行实验 / 修订方案 / 复审)→ 敲 `/xcheck-close`。**
-
-diag 模式**不加**这句(diag 闭环暂不支持,别引导)。
-
----
-
-## 边界与异常处理
-
-- **subagent 报超时/失败**:照样落 `.failed.md`,继续对其它 agent 做综合(不要因为一个挂了就整体崩)。在 SUMMARY 里注明 "本轮 <agent> 未返回/失败,以下综合基于其余 N 家"。
-- **全 claude 同构**(用户坚持):照常跑,但 SUMMARY 顶部必须显著标注 "⚠️ 本次为同构,异构价值未体现"。
-- **用户在对话里改主意**(想加/换 agent):回到第 2 步重选(适用 --agents / 默认集 / 多选三种来源),然后第 3 步重新派。
-- **`.xcheck/` 不要 commit** —— 已 gitignore。源文件只有仓库里的 skill 文件本身。
+1. **subagent 只搬运、不评判**(`lib/subagent-carrier.md`);综合/查证/裁决只在主会话。
+2. **进度只认盘**:阶段完成即勾 PROGRESS;恢复不依赖会话记忆。
+3. **停点纪律**:除壳的续跑确认、第 0 步摄入确认、第 9 步停点一问外,全链不问、不停、不等批准。
+4. 实验**禁改业务代码、禁联网、禁部署**;修订只写新文件,**原稿永不动**;绝不自动改代码/自动合并/自动"通过"。
+5. **至少 1 个非 claude**;同构只标注不拦。
+6. subagent 用便宜模型、一条消息并行派出;主会话用强模型做综合。
+7. 成败看**退出码**(exitcode 文件),不看输出文本里有没有 "error";codex 的 MCP/banner/hook 噪声 ≠ 失败。
+8. 产物全部落盘 `.xcheck/<ts>/`(已 gitignore,不 commit)。
