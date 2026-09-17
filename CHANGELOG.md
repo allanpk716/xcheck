@@ -3,6 +3,13 @@
 All notable changes to `xcheck`. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 本文件记录 xcheck 的所有显著变更。
 
+## [0.16.0] - 2026-09-17
+
+### Changed / 改进
+
+- **B'' landed: smoke parallelized, re-review rings may skip smoke, collect gets the liveness gate.** (Implements the reviewed perf proposal's B'' with the delivery-list refinements baked in.) Smoke now launches all channels concurrently in one message (background-start + block-in-turn discipline; wall = max, not sum — default-set serial 75s → ~45s expected). A re-review ring skips a channel's smoke only when all three hold: (a) it is a re-review ring; (b) the channel's **most recently actually-executed** smoke passed **and** `agents.toml` is unchanged since — evidenced by a `sha256sum` recorded as `smoke_cfg` in that ring's PROGRESS header at smoke time (skip states do **not** propagate: only the latest real smoke counts); (c) the previous ring's run for that channel fully succeeded (`exitcode == 0` **and** `.summary.md` produced — smoke-only-pass doesn't count). The skipped ring's PROGRESS smoke box still gets checked with an annotation. Backstop: **collect-stage liveness gate, all rounds** — `exitcode ≠ 0` / spawn failure / missing `.summary.md` or `<name>.raw.out` (exact protocol names) → `failed.md` with no failure-code enumeration (any non-zero is a failure); survivors < 2 → stop. flow.md/AGENTS/README/CONTEXT/docs/artifacts.md synced (PROGRESS header gains `smoke_cfg`).
+- **B'' 落地:冒烟并行化、复审环可跳冒烟、collect 判活闸门。**(实施已过审提速方案的 B'',并把交付清单里的细化一并烧进:冒烟改为一条消息并发后台跑(后台启动+回合内阻塞纪律;wall=max 非 sum——默认集串行 75s → 预计 ~45s)。复审环跳过某通道冒烟须三条件全满足:(a) 复审环;(b) 该通道**最近一次实际执行**的冒烟通过**且** `agents.toml` 自那次未变更——凭据为冒烟通过时记入当环 PROGRESS 头部 `smoke_cfg` 的 `sha256sum`(跳过状态**不传递**,只认最近一次真实冒烟);(c) 上一环该通道完整成功(`exitcode == 0` **且**产出 `.summary.md`,只冒烟过不算)。跳过环的 PROGRESS smoke 照勾带注记。兜底:**collect 判活闸门,全轮生效**——`exitcode ≠ 0` / spawn 失败 / 产物缺 `.summary.md` 或 `<name>.raw.out`(精确协议名)任一 → `failed.md`,不枚举失败码(任何非零即失败);幸存 <2 → 停。flow.md/AGENTS/README/CONTEXT/docs/artifacts.md 已同步(PROGRESS 头部新增 `smoke_cfg`)。
+
 ## [0.15.1] - 2026-09-17
 
 ### Changed / 改进

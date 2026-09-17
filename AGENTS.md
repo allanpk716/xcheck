@@ -30,15 +30,19 @@ flow.md(主会话执行,严格按步走)
   第 1 步  detect.sh 探测;已装 <2 → 停。定选集(一条道,无弹窗):
              OVERRIDE_AGENTS > default_agents(坏名防御剔除)> 报错提示先设默认集;
              SELECTED = 候选 ∩ INSTALLED(缺员降级注明)
-  第 2 步  冒烟:每家 run-agent.sh --timeout <smoke_timeout_sec|60>,判据 = exitcode 0
-             且 stdout 含 "西瓜47"(读文件回显);124 超时自动原样重跑一次(仅一次,
-             重跑过=慢非死,2026-09-17 四次实证);失败剔除并落 <name>.failed.md;
-             幸存 <2 → 停
+  第 2 步  冒烟(0.16.0 起一条消息并发后台跑,wall=max 非 sum;纪律=后台启动+
+             回合内阻塞等):每家 run-agent.sh --timeout <smoke_timeout_sec|60>,
+             判据 = exitcode 0 且 stdout 含 "西瓜47"(读文件回显);124 超时自动
+             原样重跑一次(仅一次,重跑过=慢非死,2026-09-17 四次实证);失败剔除
+             并落 <name>.failed.md;幸存 <2 → 停;通过时记 agents.toml 的 sha256
+             到 PROGRESS 头部 smoke_cfg(复审环判"配置未变更"凭据)
   第 3 步  备料:内容层(proposal.md/input.md/context.md 落 <ts>/,文件路径
              输入用 cp 快照)+ 指令层(prompt.txt,≤2KB,模板槽位填绝对正斜杠路径);
              一条消息并发派 |SELECTED| 个 subagent(subagent-carrier.md 全文
              + AGENT_NAME/PROMPT_FILE/RESULT_SHAPE 三参数)
-  第 4 步  收齐落盘(<name>.raw.out + .summary.md,失败 .failed.md),此步禁止综合
+  第 4 步  收齐落盘(<name>.raw.out + .summary.md,失败 .failed.md),此步禁止综合;
+             判活闸门(0.16.0):exitcode≠0 / spawn 失败 / 产物缺 .summary.md 或
+             <name>.raw.out 任一 → failed.md(不枚举码);幸存 <2 → 停(全轮生效)
   第 5 步  汇总(diag→synthesize-diag.md;review→synthesize-review.md 紧凑头:
              各家裁决一行 + 总判三定式 + DISAGREE 计数)→ SUMMARY.md
   第 6 步  三分类(triage.md):①可直接证实 ②可实验验证 ③存疑;①②全流水编号

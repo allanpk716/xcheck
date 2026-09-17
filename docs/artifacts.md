@@ -52,6 +52,7 @@ selected = codex, pi     # 冒烟后幸存的最终选集
 source = C:/…/xxx.md     # 原对象绝对路径 | inline(贴文)
 round = 0                # 修订轮次;复审环从 1 起
 prev = -                 # 复审链上一环的 ts;首轮 -
+smoke_cfg = <sha256>     # 冒烟通过时 agents.toml 的 sha256(0.16.0;复审环跳冒烟的"配置未变更"凭据;未冒烟不记;复审环跳过时 smoke 勾选带注记)
 
 ## 阶段(完成即打勾)
 - [x] intake … - [ ] gate               # 11 阶段,顺序固定

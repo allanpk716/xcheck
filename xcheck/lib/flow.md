@@ -49,10 +49,11 @@ mkdir -p <cwd>/.xcheck
 printf '西瓜47' > <cwd>/.xcheck/smoke.txt
 printf '读文件 <cwd>/.xcheck/smoke.txt(绝对路径、正斜杠),原样回复文件里的内容,不要加别的字。\n' > <cwd>/.xcheck/smoke-prompt.txt
 ```
-2. 对 SELECTED 每家,主会话**前台**跑(阻塞 ≤~2 分钟,在前台 600s 上限内)。**预算 = 该家在 agents.toml 的 `smoke_timeout_sec`,缺省 60**:
+2. 对 SELECTED **一条消息并发后台启动**各家的冒烟(沿用「后台启动 + 回合内阻塞等待」纪律,严禁前台串行直等):每家一条 Bash 调用(`run_in_background: true`):
 ```
 bash ~/.claude/skills/xcheck/lib/run-agent.sh <name> <cwd>/.xcheck/smoke-prompt.txt --timeout <预算>
 ```
+   全部启动后逐家 TaskOutput(block=true,timeout=600000)阻塞等齐——wall = max(各通道) 而非 sum。**预算 = 该家在 agents.toml 的 `smoke_timeout_sec`,缺省 60**。
 3. 判定(产物落 `.xcheck/` 根):`.xcheck/<name>.exitcode` 为 **0** 且 `.xcheck/<name>.raw.stdout` 含 `西瓜47` → 可用(CLI 活性 ✓ + 读文件能力 ✓ + 传参机制 ✓)。
    - **124 超时 → 自动原样重跑一次**(同预算,每家最多一次;多轮调用通道有 30s~120s 级方差,一次超时不足以判死——2026-09-17 四次实证均为"慢非死")。重跑 exit 0 且含 `西瓜47` → 可用,failed.md 里记一行"首跑超时,重试通过"备查。
    - 重跑仍超时,或 **65/66/67 脚本层故障、非零 CLI 码(401 欠费/未登录/损坏)、exit 0 但没有 `西瓜47`(非交互读不了文件)** → 剔除,告知用户"<name> 预检失败:<exitcode + run.log/stderr 末行>,本轮跳过",落 `<cwd>/.xcheck/<name>.failed.md`(两次结果都记)。
@@ -106,6 +107,8 @@ RESULT_SHAPE = <diag 结构(根因/证据/置信度/建议) | review 结构(裁�
 - `<name>.raw.out` —— 原始 CLI 输出(原样,不洗 ANSI、不删 codex 噪声,留底核查)。
 - `<name>.summary.md` —— 结构化结论。
 - 失败/超时:另写 `<name>.failed.md` 记一行(原因 + 退出码 + stderr 摘要)。
+
+**判活闸门(0.16.0,全轮生效)**:每家以 exitcode 文件为唯一权威——**exitcode ≠ 0、spawn 失败、或产物缺失(无 `<name>.summary.md` / `<name>.raw.out`),任一即记 failed.md**(不枚举失败码,任何非零退出都是失败:401 欠费、配额、CLI 崩溃一视同仁);collect 后幸存 <2 家 → 按第 1 步同款话术停链。这是复审环跳过冒烟后的兜底闸门,首轮同样生效。
 
 **不要在这一步做综合判断**。完成后勾 `collect`。
 
@@ -187,7 +190,11 @@ RESULT_SHAPE = <diag 结构(根因/证据/置信度/建议) | review 结构(裁�
    - **原稿正文一律不动**(唯一例外:终态评审附录);diff(原稿 vs 修订版)写入对话呈现。原稿被手改过(diff 对不上)→ 提示用户,以**当前文件**为修订基线,rev 序号顺延。
    - 修订版正文遵守 3.1 自代入陷阱纪律(中性陈述,不点名 agent)。
 2. **建复审环**:新 `<ts2>/` 目录 + 新 PROGRESS.md(`mode=review`、`prev=<当前ts>`、`round=m`、`source=<rev 文件绝对路径>`、`selected=<旧环 selected ∩ 当前 INSTALLED>`;`OVERRIDE_AGENTS` 若有则直接用它)。当前环勾 `gate`。
-3. **自动复审**:当前 ts 切到 `<ts2>`,从第 1 步重跑到第 9 步——detect/冒烟照跑、PROGRESS 照勾(新环从空勾起)。复审环 selected 有 agent 已卸载 → 用交集 + 注明,不弹窗。
+3. **自动复审**:当前 ts 切到 `<ts2>`,从第 1 步重跑到第 9 步——detect 照跑;**冒烟按条件可跳过(0.16.0)**,对该通道逐条判:
+   - a. 本环是复审环(prev 非空);
+   - b. 该通道**最近一次实际执行的冒烟通过**,且自那次以来 `~/.claude/skills/xcheck/agents.toml` 未变更(凭据:冒烟通过时把 `sha256sum` 摘要记入当环 PROGRESS 头部 `smoke_cfg = <hash>`,复审时重算对比;不一致 → 重跑冒烟。**跳过状态不传递**:只认最近一次真实冒烟,链上隔环不继承);
+   - c. 上一环该通道**完整成功**:`<name>.exitcode == 0` 且产出 `<name>.summary.md`(只冒烟过、评审没跑成的不算)。
+   三条全满足 → 本环跳过该通道冒烟,PROGRESS 的 smoke 照常打勾并注记 `smoke # 复审环跳过(上一环完整成功+配置指纹一致),判活闸门在 collect`;任一不满足 → 该通道按第 2 步照跑(含重试)。新环 PROGRESS 从空勾起照勾。复审环 selected 有 agent 已卸载 → 用交集 + 注明,不弹窗。
 4. 新一轮到第 9 步:
    - 必改项空(①+② 真空,或剩余全被证伪/实验不成立)→ 终态 `收敛(m 轮修订)`,链结束。
    - 必改非空且 m < 2 → 同问(停点一问)再一轮。
@@ -220,6 +227,7 @@ selected = codex, kimi        # 冒烟后幸存的最终选集(冒烟前先记�
 source = C:/…/xxx.md          # 原方案绝对路径 | inline
 round = 0                     # 修订轮次;复审环从 1 起
 prev = -                      # 复审链上一环 ts;首轮 -
+smoke_cfg = <sha256>          # 冒烟通过时 agents.toml 的 sha256 摘要(0.16.0,复审环判"配置未变更"用;未冒烟不记)
 
 ## 阶段(完成即打勾)
 - [x] intake                  # 跳过摄入也算完成
