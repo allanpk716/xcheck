@@ -4,7 +4,7 @@
 
 **进度只认盘(铁律)**:每阶段完成即在 `<cwd>/.xcheck/<ts>/PROGRESS.md` 打勾(格式见文末)。会话崩了/中断,用户重敲 `/xcheck`,壳检测未完成链、经用户确认后续跑——恢复与排障的唯一依据是这个文件,不依赖任何会话记忆。
 
-**停点纪律(铁律)**:全链只有三处开口等用户——① 壳的"续旧的还是开新的"(仅当盘上有未完成链);② 第 0 步对象解析确认(仅当输入空/含糊);③ 第 9 步停点一问。**其余一切(检测/冒烟/派发/汇总/三分类/查证/实验)自动推进,不问、不停、不等批准。** night 模式(NIGHT_MODE = 1)下三处开口全部自动过,整链零开口:①壳自动续最新未完成链,不弹窗;②第 0 步自动采纳解析器最优推断(落 night-intake.md 留档,见第 0 步);③第 9 步停点按夜链决策表自动拍板(见第 9 步)。
+**停点纪律(铁律)**:全链只有三处开口等用户——① 壳的"续旧的还是开新的"(仅当盘上有未完成链);② 第 0 步对象解析确认(仅当输入空/含糊);③ 第 9 步停点一问。**其余一切(检测/冒烟/派发/汇总/三分类/查证/实验)自动推进,不问、不停、不等批准。** night 模式(NIGHT_MODE = 1,来源:`--night` 或壳的入口一问选"自动推进")下三处开口全部自动过,其后零开口——自动化优先级最高,下游技能(to-spec/to-tickets/修复环)的确认关卡一律自动裁定记账(铁律 9):①壳自动续最新未完成链,不弹窗;②第 0 步自动采纳解析器最优推断(落 night-intake.md 留档,见第 0 步);③第 9 步停点按夜链决策表自动拍板(见第 9 步)。
 
 **终点观(0.15.0 铁律)**:本链的使命是**把发现的东西查清、分好类、交给下游**,不是把方案修到完美。三类就是输出骨架:①当场查实的(证据在手)②可做实验的(实验后归入成立/不成立/无定论)③存疑的(编码/测试阶段才见分晓的风险点)。调研阶段不可能清零一切——③类天生属于开发期,**带着清单进开发是正常且一等公民的出口,不是失败**。修订轮的价值=把①②里值得现在改的改掉;"必改清零"只是出口之一,不是及格线。"推倒重来"只属于评审指出**方向性错误**的情形,细节改不干净永远不构成推倒理由。
 
@@ -209,21 +209,38 @@ RESULT_SHAPE = <diag 结构(根因/证据/置信度/建议) | review 结构(裁�
 
 ## 第 11 步:夜间接续(NIGHT_MODE = 1 且终态收尾已完成——PROGRESS 终态已落盘、附录已按终态收尾规则写或跳过)
 
-> 夜链专属:把评审交付物接进下游"写实施计划 → 子代理执行"。非夜链(普通 /xcheck)永远不进这一步(唯一例外:壳弹窗确认"续跑夜链"时,壳已一并设 NIGHT_MODE = 1)。夜链安全栏(铁律 9)在本步全程生效。
+> 夜链专属:把评审交付物接进下游"固化 spec → 拆票 → 逐票实施"(Matt Pocock 主流程的 to-spec → to-tickets → implement 一段)。非夜链(普通 /xcheck)永远不进这一步(唯一例外:壳弹窗确认"续跑夜链"时,壳已一并设 NIGHT_MODE = 1)。夜链安全栏与自动化优先级(铁律 9)在本步全程生效。
 
-1. **建账**:复用评审 ts 目录(复审链取最新环的 ts),建 `<cwd>/.xcheck/<ts>/NIGHT.md`(格式见文末),勾 `review`,头部记评审终态与 spec 路径。
+1. **建账**:复用评审 ts 目录(复审链取最新环的 ts),建 `<cwd>/.xcheck/<ts>/NIGHT.md`(格式见文末),勾 `review`,头部记评审终态与 object(被评文档)路径。
 2. **终态分流**:
    - 终态为 `无需修订` / `收敛(*)` / `夜间收工` → 接续(下一条)。
    - 终态为 `推倒重来` / `用户中止` / `完成(diag)` → **不接下游**:NIGHT 记终态与 `note = 未接下游(<原因>)`,写两行晨报短稿 `<cwd>/.xcheck/<ts>/MORNING.md`(终态一句 + "明细在 .xcheck/<ts>/SUMMARY.md"),直接勾 `finish`,推通知("评审判定方向性错误/链被中止,没写代码,晨报 .xcheck/<ts>/MORNING.md"),夜链结束。推倒重来是人的决定,夜里绝不自动重新设计。
-3. **定 spec**:spec = 最新 `<原名>.rev<m>.md`(取最大 m)> PROGRESS `source` 的文件路径 > `<ts>/proposal.md`(inline / 讨论型固化稿)。文档文末已带评审附录(主交付物),spec 连附录一起交给下游。
-4. **写计划**:推通知("评审终态:<人话一句>。开始写实施计划。")→ 调 Skill `superpowers:writing-plans`,spec = 上一步定的路径;额外要求(随调用传入):评审附录里的③存疑条目与②无定论条目要进计划的 Global Constraints"开发时要盯"小节,每条带触发点与命中动作("停下反馈,别默默绕过");计划落 `docs/superpowers/plans/`;结尾的执行二选一**自动选子代理驱动**,不问。完成:NIGHT 勾 `plan`,头部记 plan 路径。
-5. **子代理执行**:推通知("计划落盘:<路径>,N 个任务。开始在隔离 worktree 执行,不 push 不合并。")→ 先调 Skill `superpowers:using-git-worktrees` 建 worktree(**基于当前本地 HEAD**,不是 origin——夜链不 push,origin 上没有 spec/plan 提交)→ 再调 Skill `superpowers:subagent-driven-development` 按计划逐任务执行。夜链预授权边界(写进给 SDD 的上下文):worktree 内实施/测试/本地 commit/fix 环/终局全分支评审全部允许;凡涉及 push、开 PR、合并、rebase 主分支的一律**预先裁定"保留分支,早上人工定"**;其余按 SDD 自己的"裁决不停等"纪律办,每条裁决记其 ledger。完成:NIGHT 勾 `sdd`,头部记分支名与 worktree 路径。
-6. **终局收尾(finish)**:
-   - 写晨报 `<cwd>/.xcheck/<ts>/MORNING.md`:四问结构——【评了什么】【改了什么】(评审段修订了几版、消化多少条)【执行了什么】(计划 N 任务、分支名、worktree 路径、测试结果)【早上要决定什么】(合并/PR/保留分支,含建议)——外加 SDD ledger 全部 Ruling 清单与计划/产物路径;自包含,不翻任何文件就能懂要决定什么。
+3. **定对象(object)**:object = 最新 `<原名>.rev<m>.md`(取最大 m)> PROGRESS `source` 的文件路径 > `<ts>/proposal.md`(inline / 讨论型固化稿)。文档文末已带评审附录(主交付物),object 连附录一起交给 to-spec。
+4. **固化 spec(to-spec)**:推通知("评审终态:<人话一句>。开始固化实施 spec。")→ 调 Skill `to-spec`,输入 = 第 3 条的 object(连文末评审附录)+ 本链背景;夜链附加指令(随调用传入):
+   - **不发布 issue tracker**(对外动作夜里禁):spec 落本地 `<cwd>/docs/superpowers/specs/<YYYYMMDD>-<主题>-spec.md` 并 commit;
+   - to-spec 的 seam 确认关卡**自动过**:主会话裁定 seam 取舍(优先既有最高 seam,确需新 seam 从最高点提案),裁定记 NIGHT;
+   - 评审附录的③存疑条目与②无定论条目写进 spec 的 Testing Decisions / Further Notes("开发时要盯",每条带触发点与命中动作"停下反馈,别默默绕过")。
+   完成:NIGHT 头部 `spec` 字段填路径。
+5. **拆票(to-tickets)**:仍属 `plan` 阶段 → 调 Skill `to-tickets`,输入 = spec 文件;夜链附加指令:
+   - **本地模式**:票落 `<cwd>/.scratch/<feature-slug>/issues/NN-<slug>.md`(一票一文件:What to build / 验收标准 / Blocked by),**不上 tracker**;完成后 commit;
+   - 拆票 quiz(粒度/阻塞边确认)**自动过**:主会话自查三条(每票端到端竖切可独立验收 · 粒度≈单个新鲜上下文 · 阻塞边=真实依赖),疑点裁定记 NIGHT;
+   - 宽改动(wide refactor)按 to-tickets 原文的 expand–contract 例外排序,不硬切竖片。
+   完成:NIGHT 头部 `tickets` 字段填目录,勾 `plan`(注记"spec + N 票")。
+6. **逐票实施(impl,worktree 内)**:推通知("spec 固化 + 拆票完成:N 张票。开始在隔离 worktree 逐票实施,不 push 不合并。")→:
+   - **建 worktree**(git worktree,基于**当前本地 HEAD**——夜链不 push,origin 上没有 spec/票提交),分支名 `xcheck-night-<ts>`;此后一切实施只在此 worktree 内。
+   - **frontier = blockers 全完成的票**,按编号序**严格串行**(绝不并行派两个实施者,防冲突)。每票循环:
+     a. 记 BASE=当前 HEAD;派 fresh implementer subagent:brief = 票文件全文 + spec 路径 + 前票已定接口与裁定;要求 **TDD**(先写失败测试跑红 → 最小实现跑绿)→ 跑覆盖测试 → commit(一票可多 commit);模型:单文件机械票用便宜档,跨文件/含设计判断票用中档;回报四态(DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / Blocked)。
+     b. 回报处理:DONE_WITH_CONCERNS 先读疑虑再定;NEEDS_CONTEXT 补上下文重派;Blocked 主会话裁定(拆小 / 换更强模型 / 跳过停靠记账),不硬闯。
+     c. 派独立 reviewer subagent 做**双轴评审**(Spec 符合 = 票的验收标准逐条核;Standards = 代码质量),输入 = 票文件 + BASE..HEAD diff 打包文件。发现 Critical/Important → 修复环:R≤3 resume 原实施者,R4-5 换更强模型 fresh 重派,每轮修复后一次 scoped re-review(只核发现与修复 diff 新破损),**每票上限 5 轮**;cap 后逐条裁定(评审过严/可争议 → 停靠;真实但无下游依赖 → 停靠;真实且承重 → 最小修正+记账)。Minor 记 NIGHT 停靠清单,供终局裁量。
+     d. 票完成:NIGHT 的票级台账追加一行(格式见文末),半夜崩了重敲续跑从第一张未 complete 的票起。
+   - 全票完 → **终局全分支 code review**:派最强档 reviewer,输入 = merge-base..HEAD 全分支 diff 包 + 票清单 + 停靠 minor 清单;有发现 → **一轮 fix 派发**(全部发现一次派一个实施者)+ 一次 scoped re-review;残留逐条裁定停靠/记账,无第二波修复。
+   完成:NIGHT 勾 `impl`,头部 `impl` 字段填分支名@worktree 路径。
+7. **终局收尾(finish)**:
+   - 写晨报 `<cwd>/.xcheck/<ts>/MORNING.md`:四问结构——【评了什么】【改了什么】(评审段修订了几版、消化多少条)【执行了什么】(N 张票逐票状态、分支名、worktree 路径、spec 与票目录、测试结果)【早上要决定什么】(合并/PR/保留分支,含建议)——外加全部裁定清单(评审段裁定 + to-spec/to-tickets 自动关卡裁定 + 每票修复环停靠 + 终局裁定)与 spec/票目录/产物路径;自包含,不翻任何文件就能懂要决定什么。
    - 推通知:"夜链完成:<一句话>。分支 <name> 待你处理,晨报 .xcheck/<ts>/MORNING.md。"(任一步失败变体:停在哪一步、早上敲 `/xcheck --night` 怎么续。)
    - NIGHT 勾 `finish`,夜链结束。合并/PR/保留由用户早上人工走 `superpowers:finishing-a-development-branch`。
 
-**通知纪律**:三个节点(写计划前 / 执行前 / 收尾)用 claude-notify(Pushover + Windows Toast);`PUSHOVER_TOKEN` / `PUSHOVER_USER` 未配置或推送失败 → **跳过不阻塞**(晨报是兜底交付)。通知正文一句话人话,不带机器词。
+**通知纪律**:三个节点(固化 spec 前 / 逐票实施前 / 收尾)用 claude-notify(Pushover + Windows Toast);`PUSHOVER_TOKEN` / `PUSHOVER_USER` 未配置或推送失败 → **跳过不阻塞**(晨报是兜底交付)。通知正文一句话人话,不带机器词。
 
 ## 终态收尾(任一终态)
 
@@ -281,19 +298,23 @@ night = on                    # 仅夜链(--night)写;非夜链无此行(0.17.0)
 night = on
 review_ts = <ts>               # 评审环 ts(复审链取最新环)
 终态 = 夜间收工                # 评审段终态(七值之一)
-spec = C:/…/xxx.rev1.md        # 第 11 步.3 定的 spec 绝对路径
-plan = docs/superpowers/plans/<日期>-<主题>.md   # 写计划后填;未到填 -
-sdd = <分支名>@<worktree 路径>  # 执行段;未到填 -
+object = C:/…/xxx.rev1.md      # 第 11 步.3 定的被评文档绝对路径
+spec = docs/superpowers/specs/<日期>-<主题>-spec.md   # to-spec 产物;未到填 -
+tickets = .scratch/<slug>/issues/   # to-tickets 票目录;未到填 -
+impl = <分支名>@<worktree 路径>  # 逐票实施;未到填 -
 note = 未接下游(推倒重来)      # 可选注记
 
 ## 阶段(完成即打勾)
 - [x] review                   # 评审段(含修订复审环)终态落定
-- [ ] plan                     # 实施计划落盘
-- [ ] sdd                      # 子代理执行完(终局评审过)
+- [ ] plan                     # to-spec 固化 + to-tickets 拆票完成
+- [ ] impl                     # 逐票实施完(终局评审过)
 - [ ] finish                   # 晨报落盘 + 通知 + 夜链结束
+
+## 票级台账(impl 段逐票追加)
+票 01: complete(commits a1b2c3d..d4e5f6a, review clean)
 ```
 
-**恢复语义**:`finish` 未勾 = 夜链未完成(壳扫描接管,`--night` 自动续,不带 `--night` 弹窗确认)。分段定位:review 段靠 PROGRESS(评审段没跑完时 PROGRESS 终态空,先按恢复模式跑完评审);`plan` 未勾 = 计划重写(半截文件直接覆盖);`sdd` 段靠 SDD 自己的 ledger 续。三段各有盘上锚点,不依赖会话记忆。
+**恢复语义**:`finish` 未勾 = 夜链未完成(壳扫描接管,`--night` 自动续,不带 `--night` 弹窗确认)。分段定位:review 段靠 PROGRESS(评审段没跑完时 PROGRESS 终态空,先按恢复模式跑完评审);`plan` 未勾 = spec/票重做(半截文件直接覆盖);`impl` 段靠 NIGHT 票级台账续——worktree 与分支在则进入续跑,不在则按 `impl` 字段重建(分支已存在则直接挂上,连分支都没了则从 spec/票所在提交重开 worktree)。三段各有盘上锚点,不依赖会话记忆。
 
 ## 边界与异常
 
@@ -309,7 +330,7 @@ note = 未接下游(推倒重来)      # 可选注记
 | 用户对话里要换 agent 集 | 未派发 → 回第 1 步重定;已派发 → 本轮照跑完,下轮用 `--agents` |
 | 旧版 .xcheck 产物 | 无 PROGRESS.md → 静默忽略,不算未完成 |
 | 夜间解析不出对象(阶梯落"反问"档) | 停链 + 推通知;夜里绝不瞎猜对象 |
-| 夜链任何一步失败(计划崩/执行崩/通知崩) | 推通知(停在哪、早上怎么续);NIGHT.md 停在当前阶段,`/xcheck --night` 可续;通知失败不阻塞,晨报兜底 |
+| 夜链任何一步失败(spec 固化崩/拆票崩/逐票实施崩/通知崩) | 推通知(停在哪、早上怎么续);NIGHT.md 停在当前阶段,`/xcheck --night` 可续(impl 段从第一张未 complete 的票起);通知失败不阻塞,晨报兜底 |
 | 早上裸敲 /xcheck(无 --night)遇未完成夜链 | 弹窗 0 的续跑选项注明停于 PROGRESS/NIGHT 阶段;评审段已终态的夜链,确认续跑 = 一并设 NIGHT_MODE = 1;不自动续(人在场,要确认) |
 
 ## 铁律(全套,不打折扣)
@@ -322,4 +343,4 @@ note = 未接下游(推倒重来)      # 可选注记
 6. subagent 用便宜模型、一条消息并行派出;主会话用强模型做综合。
 7. 成败看**退出码**(exitcode 文件),不看输出文本里有没有 "error";codex 的 MCP/banner/hook 噪声 ≠ 失败。
 8. 产物全部落盘 `.xcheck/<ts>/`(已 gitignore,不 commit)。
-9. **夜链安全栏(NIGHT_MODE = 1)**:第 11 步下游执行的一切代码改动只发生在 worktree;**不 push、不开 PR、不合并、不 rebase 主分支、不动主工作区**;通知失败不阻塞,晨报(MORNING.md)兜底;夜间会话须用免弹窗权限模式跑(bypassPermissions 或预放行常用命令,否则子代理权限弹窗挂整夜)。
+9. **夜链安全栏与自动化优先级(NIGHT_MODE = 1)**:第 11 步下游执行的一切代码改动只发生在 worktree;**不 push、不开 PR、不合并、不 rebase 主分支、不动主工作区**;通知失败不阻塞,晨报(MORNING.md)兜底;夜间会话须用免弹窗权限模式跑(bypassPermissions 或预放行常用命令,否则子代理权限弹窗挂整夜)。**自动化优先级最高**:下游技能(to-spec 的 seam 确认、to-tickets 的拆票 quiz、评审修复环的一切"问用户"时刻)在夜链一律自动通过、当场裁定记账;唯一停链例外 = 不可逆或破坏性操作 / 安全敏感 / 出 worktree 的副作用 / 全盘皆猜——停 + 推通知。
