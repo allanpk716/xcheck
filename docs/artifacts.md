@@ -36,7 +36,7 @@
 │   ├── <agent>.failed.md          # 该家超时/失败的一行记录(有才建)
 │   ├── <agent>.spawn.err          # wrapper 层被外部掐断的证据(罕见,有才建)
 │   ├── night-intake.md            # (夜链)第 0 步解析推断留档(夜里不弹窗的"过目"替代)
-│   ├── NIGHT.md                   # (夜链)下游接续进度账本:review/plan/sdd/finish
+│   ├── NIGHT.md                   # (夜链)下游接续进度账本:review/plan/impl/finish + 票级台账
 │   ├── MORNING.md                 # (夜链)晨报:四问人话总交付 + 执行裁决清单(收尾才有)
 │   ├── proposal.rev<m>.md         # 修订版(source=inline 时落这里;文件型落原文件同目录)
 │   └── exp/                       # ②类实验的临时文件(脚本、输出),留底不删
@@ -131,11 +131,13 @@ night = on               # (夜链才有)夜间模式:停点自动决策、终�
 
 ## 夜链产物(--night 触发时才有)
 
-- **NIGHT.md**:下游接续的进度账本,四阶段 `review → plan → sdd → finish`;`finish` 未勾 = 夜链未完成,`/xcheck --night` 续。头部记评审终态、spec/plan 路径、分支名。
+- **NIGHT.md**:下游接续的进度账本,四阶段 `review → plan → impl → finish`(plan = to-spec 固化 + to-tickets 拆票);`finish` 未勾 = 夜链未完成,`/xcheck --night` 续。头部记评审终态、object(被评文档)/spec(固化产物)/tickets(票目录)/impl(分支@worktree)路径;票级台账逐票记 `票 NN: complete(...)`——impl 段的恢复锚点。
 - **night-intake.md**:夜间第 0 步解析器的推断留档(对象+模式+背景原话)——夜里不弹确认窗,推断直接生效,此文件就是"本应过目"的替代,用户早上可查。
 - **MORNING.md**:晨报,人话总交付:【评了什么】【改了什么】【执行了什么】【早上要决定什么】+ 子代理执行期间的全部裁决(Ruling)+ 分支名/worktree 路径/计划与产物路径。
-- **代码不在 .xcheck/**:夜链子代理执行的代码改动在 **worktree 分支**上(NIGHT.md `sdd` 行记了分支名与路径);.xcheck/ 只有账,没有代码。
-- 推倒重来 / 用户中止 / diag 的夜链**不接下游**(没有 plan/sdd 两步),NIGHT.md 的 note 会注明原因。
+- **代码不在 .xcheck/**:夜链子代理执行的代码改动在 **worktree 分支**上(NIGHT.md `impl` 行记了分支名与路径);.xcheck/ 只有账,没有代码。
+- **spec 固化产物**:实施 spec 落 `docs/superpowers/specs/<日期>-<主题>-spec.md`(commit 到分支),不是 .xcheck/ 下的留底——它是 to-tickets 与逐票实施的输入。
+- **票目录**:tracer-bullet 票落仓库根 `.scratch/<feature-slug>/issues/NN-<slug>.md`(一票一文件:What to build / 验收标准 / Blocked by),commit 到分支;实施顺序 = blockers 优先(frontier)。
+- 推倒重来 / 用户中止 / diag 的夜链**不接下游**(没有 plan/impl 两步),NIGHT.md 的 note 会注明原因。
 
 ## 你可以做的
 
