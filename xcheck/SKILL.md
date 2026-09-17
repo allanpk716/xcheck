@@ -2,24 +2,27 @@
 name: xcheck
 description: 一次触发全自动异构评审 —— 并行盲评本地多个 AI agent、自动查证与实验、终点交付已验证三分类清单,停点一问。手动调用 /xcheck。
 disable-model-invocation: true
-argument-hint: [--agents a,b,c] [<问题描述或方案>]
+argument-hint: [--night] [--agents a,b,c] [<问题描述或方案>]
 ---
 
 # /xcheck — 单停点全自动链入口
 
-`$ARGUMENTS` 可空(裸敲 = 只查未完成链,没有就反问)。你(壳)只做四件事:**抠 --agents → 查未完成链 → 路由 → 转派**。编排大脑是 `~/.claude/skills/xcheck/lib/flow.md` 的「第 0 步(可选)+ 10 步」,你不重新实现它。
+`$ARGUMENTS` 可空(裸敲 = 只查未完成链,没有就反问)。你(壳)只做四件事:**抠旗标(--night / --agents)→ 查未完成链 → 路由 → 转派**。编排大脑是 `~/.claude/skills/xcheck/lib/flow.md` 的「第 0 步(可选)+ 11 步」(第 11 步 = 夜链专属),你不重新实现它。
 
-## 1. 抠 --agents(可选)
+## 1. 抠旗标(--night / --agents,可选)
+
+若 `$ARGUMENTS` 含独立 token `--night`(布尔,无值):把它从 `$ARGUMENTS` 删除,设 `NIGHT_MODE = 1`(夜链:整链无人值守,第 0 步确认与第 9 步停点自动拍板,评审终态后接 flow 第 11 步"写计划 → 子代理执行";细节全在 flow.md)。可与 `--agents` 并用,顺序不限。**夜链操作前提**:夜间会话要用免弹窗权限模式跑(bypassPermissions 或预放行常用命令),否则子代理一条 Bash 权限弹窗能挂整夜。
 
 若 `$ARGUMENTS` 含 `--agents`:其值 = 紧跟后**一个空白分隔 token**(纯逗号串,如 `codex,kimi`,不含空格)。把 `--agents <token>` 从 `$ARGUMENTS` 删掉,剩余文本 = 待分类内容。token 非空 → `OVERRIDE_AGENTS = <拆成的名字列表>`;名字不在 agents.toml 的 `[agents.<name>]` → **报错停住**,打印"名字 X 不在 agents.toml;可用 agent:<列出所有 [agents.*] key>",不继续。token 为空 → 当没敲。
 
 ## 2. 查未完成链(弹窗 0)
 
-扫 `<cwd>/.xcheck/*/PROGRESS.md`:文件存在且其 `## 终态` 段**为空** = 该 ts 未完成。取 ts 字符串最大的一个(多个未完成:取最新,选项文本顺带列出其余)。
+扫 `<cwd>/.xcheck/*/PROGRESS.md`:文件存在且其 `## 终态` 段**为空** = 该 ts 评审段未完成;再扫 `<cwd>/.xcheck/*/NIGHT.md`:文件存在且其 `## 阶段` 里 `finish` **未勾** = 该 ts 夜链未完成。取 ts 字符串最大的一个(多个未完成:取最新,选项文本顺带列出其余)。
 
-- **没有未完成** → 进第 3 件。
-- **有** → AskUserQuestion(单选):
-  - `续跑 <ts>(停于:<PROGRESS 第一个未勾阶段>)` → 设 `RESUME_TS = <ts>`,**跳过路由与摄入**,直接按第 4 件转派 flow.md 恢复模式。
+- **都没有** → 进第 3 件。
+- **有且 `NIGHT_MODE = 1`** → **不弹窗,自动续**最新未完成链:评审段未完成 → 设 `RESUME_TS = <ts>`,跳过路由与摄入,按第 4 件转派 flow.md 恢复模式;评审段已终态而夜链未完 → 直接按第 4 件转派 flow.md 第 11 步续(NIGHT.md 定位从哪个阶段续)。
+- **有且无 NIGHT_MODE** → AskUserQuestion(单选):
+  - `续跑 <ts>(停于:<PROGRESS 第一个未勾阶段 / NIGHT 第一个未勾阶段>)` → 设 `RESUME_TS = <ts>`,**跳过路由与摄入**,直接按第 4 件转派 flow.md(评审段未完走恢复模式;评审段已终态走第 11 步)。
   - `新开` → 进第 3 件(输入为空也没关系,第 3 件会转解析器从上下文推断)。
 
 > 旧版产物(run.md、无 PROGRESS.md 的目录)**不算未完成**,静默忽略。
@@ -38,13 +41,13 @@ argument-hint: [--agents a,b,c] [<问题描述或方案>]
 
 ## 4. 转派 flow.md
 
-设 `MODE = diag | review | auto`(auto = 空或含糊输入,由 flow 第 0 步解析器落定),连同 `OVERRIDE_AGENTS`(若有)、`RESUME_TS`(若有,仅第 2 件续跑时),按 `~/.claude/skills/xcheck/lib/flow.md` 执行。diag 用 `prompts/diag.md` + `prompts/synthesize-diag.md`;review 用 `prompts/review.md` + `prompts/synthesize-review.md`。
+设 `MODE = diag | review | auto`(auto = 空或含糊输入,由 flow 第 0 步解析器落定),连同 `OVERRIDE_AGENTS`(若有)、`RESUME_TS`(若有,仅第 2 件续跑时)、`NIGHT_MODE`(若有,= 1 时 flow 按夜链规则跑),按 `~/.claude/skills/xcheck/lib/flow.md` 执行。diag 用 `prompts/diag.md` + `prompts/synthesize-diag.md`;review 用 `prompts/review.md` + `prompts/synthesize-review.md`。
 
 ## 铁律(全套,不打折扣)
 
 - **subagent 只搬运、不评判**(`lib/subagent-carrier.md`);综合只在主会话。
 - **进度只认盘**:阶段完成即勾 PROGRESS.md;恢复不依赖会话记忆。
-- 全链只在三处开口:第 2 件续跑确认、flow 第 0 步对象解析确认(仅空/含糊输入)、flow 第 9 步停点一问;**其余一律自动推进**。
+- 全链只在三处开口:第 2 件续跑确认、flow 第 0 步对象解析确认(仅空/含糊输入)、flow 第 9 步停点一问;**其余一律自动推进**。night 模式(`--night`)下三处开口全部自动过(壳自动续链、解析自动采纳、停点自动拍板),整链零开口。
 - 实验**禁改业务代码、禁联网、禁部署**;修订只写新文件,原稿正文不动(唯一例外:review 终态在被评文档文末追加评审附录)。
 - **至少一个非 claude**;全 claude 只标注不拦。
 - 派 subagent 用便宜模型,一条消息并行;成败看退出码,codex 的 MCP/banner/hook 噪声 ≠ 失败。
