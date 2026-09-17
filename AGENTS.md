@@ -8,13 +8,17 @@
 
 xcheck 是两枚全局 Claude Code skill:`/xcheck`(单停点全自动评审链)和 `/xcheck-setup`(agent 管理)。它把本机异构 AI agent CLI 组织成盲评审团,对方案(review)或故障(diag)并行盲评,自动完成"三分类 → ①只读查证 → ②沙箱实验",终点用人话交付结论并只问一个问题(要不要修订+复审)。编排大脑是 Markdown 指令(`flow.md`),由主会话的模型执行;agent 执行是机械化的(`run-agent.sh`)。
 
+0.17.0 起支持**夜链**:`/xcheck --night` 无人值守贯通"评审 → superpowers:writing-plans → superpowers:subagent-driven-development(worktree 内执行)",不 push 不合并,终点 = 本地分支 + 晨报 MORNING.md。
+
 ## 一次 /xcheck 的完整生命周期(精确版)
 
 ```
 壳 xcheck/SKILL.md(只做 4 件事)
-  1. 抠 --agents(单 token 纯逗号串;名字不在 agents.toml → 报错停)
-  2. 查未完成链(<cwd>/.xcheck/*/PROGRESS.md 存在且 ## 终态 为空;取最大 ts)
-     → 弹窗 0:续跑(设 RESUME_TS,跳过路由与摄入)/ 新开
+  1. 抠旗标(--night 布尔 → NIGHT_MODE=1;--agents 单 token 纯逗号串,
+     名字不在 agents.toml → 报错停)
+  2. 查未完成链(PROGRESS.md ## 终态 为空 = 评审段未完;NIGHT.md finish
+     未勾 = 夜链未完;取最大 ts)→ 弹窗 0:续跑/新开;NIGHT_MODE=1 →
+     不弹窗自动续(评审段未完走恢复模式;已终态走第 11 步)
   3. 定 MODE:自包含输入走关键词词表(单边命中直通,双边/双空反问一次);
      空/含糊(含指代词)→ MODE = auto
   4. 转派 lib/flow.md
@@ -63,17 +67,24 @@ flow.md(主会话执行,严格按步走)
              推倒仅用户确认,不自动判
   终态收尾  先写评审附录(review + 结论性终态 + source 是文件 → 被评文档文末,
              按 ts 幂等重写),再写 PROGRESS 终态
+  第 11 步 夜链(NIGHT_MODE=1,评审终态落定后):建 NIGHT.md → 终态分流(无需修订/
+             收敛/夜间收工接续;推倒重来/用户中止/完成(diag)不接下游)→ 定 spec
+             (最新 rev > source 路径 > proposal.md)→ 调 superpowers:writing-plans
+             (③存疑+②无定论进计划 Global Constraints"开发时要盯")→ worktree
+             (基于本地 HEAD)调 superpowers:subagent-driven-development 执行
+             (不 push/PR/合并,预授权边界=保留分支)→ 晨报 MORNING.md + 三节点
+             通知(claude-notify,失败不阻塞)+ NIGHT 勾 finish
 ```
 
-**开口纪律**:全链只有三处等用户 —— 壳的续跑确认、第 0 步对象解析确认(仅含糊输入)、第 9 步停点一问。其余一律自动推进。
+**开口纪律**:全链只有三处等用户 —— 壳的续跑确认、第 0 步对象解析确认(仅含糊输入)、第 9 步停点一问。其余一律自动推进。night 模式(`--night`)下三处开口全部自动过(自动续链/自动采纳解析/停点自动拍板),整链零开口。
 
 ## 模块地图
 
 | 文件 | 职责 | 修改注意 |
 |---|---|---|
-| `xcheck/SKILL.md` | 入口壳:参数抠取、未完成链检查、MODE 词表路由、转派 | 壳不实现链逻辑;词表只在此文件,改词表要同步 README 输入形态描述 |
+| `xcheck/SKILL.md` | 入口壳:旗标抠取(--night/--agents)、未完成链检查(含夜链)、MODE 词表路由、转派 | 壳不实现链逻辑;词表只在此文件,改词表要同步 README 输入形态描述 |
 | `xcheck/agents.toml` | agent 登记表 + `[defaults]`(timeout_sec、default_agents) | **只能 Edit 精确匹配,禁止整文件 Write**(注释是实测注记);`/xcheck-setup` 模式 C/D 也走 Edit |
-| `xcheck/lib/flow.md` | 自动链大脑:步骤定义、播报纪律、边界表、铁律 | **步骤编号(0~10)与 PROGRESS 阶段枚举是跨文件协议**(SKILL、carrier、setup、两份 AI 文档都引用);改编号 = 改协议,须全量同步 |
+| `xcheck/lib/flow.md` | 自动链大脑:步骤定义、播报纪律、边界表、铁律 | **步骤编号(0~11)与 PROGRESS 阶段枚举是跨文件协议**(SKILL、carrier、setup、两份 AI 文档都引用);改编号 = 改协议,须全量同步 |
 | `xcheck/lib/context-intake.md` | 对象解析阶梯 + 摘录路径(0.1/0.2)+ 零往返背景(0.6) | 解析结果必须过一个确认窗才准 fan-out(错对象 = 整链白跑);摘录铁律 = 用户原话不改写 |
 | `xcheck/lib/subagent-carrier.md` | 搬运工指令(7 步) | 后台启动 + **回合内阻塞等待**两条纪律是用事故换来的,别"简化";CLI 噪声剥离表(update 时同步 cli-findings) |
 | `xcheck/lib/extractor-carrier.md` | 摘录员指令:按来源筛([用户]/[材料]),不改写不评判 | 输出格式 `## 摘录事实清单` 被 context-intake 0.2 引用 |
@@ -94,11 +105,13 @@ flow.md(主会话执行,严格按步走)
 6. **成败只认 exitcode 文件**,不认输出文本;codex 的 banner/MCP/hook 噪声 ≠ 失败。
 7. **产物全落 `.xcheck/<ts>/`**(已 gitignore,不 commit);对话说人话、文件留机器账。
 8. **搬运工必须后台启动 run-agent.sh 并在回合内阻塞等待**:前台直等 600s 被 harness 掐断、结论永久丢失;停回合等通知则搬运永不发生(两次事故实证)。
+9. **夜链安全栏(--night)**:第 11 步下游执行的一切代码改动只在 worktree;不 push、不开 PR、不合并、不 rebase 主分支、不动主工作区;通知失败不阻塞,晨报兜底;夜间会话须免弹窗权限模式。
 
 ## 状态协议
 
 - **PROGRESS.md 阶段枚举**(11 值,顺序固定):`intake, detect, smoke, fanout, collect, synthesize, triage, verify, experiments, deliverable, gate`。`gate` 勾选时机特殊:停点已答且(答"带清单进开发/收工/确认推倒"链已终态 | 答"修订再评/再修一轮"修订已落盘+复审环已建)。
-- **终态六值**:`收敛(N 轮修订)` / `推倒重来`(**仅用户在 m=2 三选停点确认**)/ `无需修订`(仅 round 0 且必改项空:①+② 真空,或剩余全被证伪/实验不成立)/ `用户不修`(必改非空,用户选择带三类清单进开发)/ `用户中止` / `完成(diag)`。
+- **终态七值**:`收敛(N 轮修订)` / `推倒重来`(**仅用户在 m=2 三选停点确认**)/ `无需修订`(仅 round 0 且必改项空:①+② 真空,或剩余全被证伪/实验不成立)/ `用户不修`(必改非空,用户选择带三类清单进开发)/ `夜间收工`(夜链自动决策的带清单/按现状收工,用户未在场)/ `用户中止` / `完成(diag)`。
+- **夜链账本**:PROGRESS 头部可选字段 `night = on`(夜链才写);NIGHT.md 四阶段 `review/plan/sdd/finish`(`finish` 未勾 = 夜链未完成,不进 PROGRESS 阶段枚举)。
 - **SUMMARY.md 结论区五字段**(机械拼装,零新判断):状态行、必改项(①✅+②成立)、各家裁决、信号(三定式)、统计。
 - 产物逐文件语义见 [docs/artifacts.md](docs/artifacts.md) —— **改产物格式必须同步该文件**。
 
