@@ -3,6 +3,19 @@
 All notable changes to `xcheck`. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 本文件记录 xcheck 的所有显著变更。
 
+## [0.15.0] - 2026-09-17
+
+### Changed / 改进
+
+- **Mission restated: the chain delivers a classified list, not a perfect plan.** Root cause of the "I can't tell what to decide and the verdict read like jargon" feedback after the first true end-to-end run (xcheck reviewing its own perf proposal, 3 rounds, 32 verified findings): the chain was framed as *converge or die* — "must-fix cleared" was the pass line and two dirty rounds auto-triggered "start over". New **终点观 (endpoint doctrine, iron rule)**: the mission is to sort findings into the three tiers — ① verified on the spot (evidence in hand), ② experimentally testable (resolved to 成立/不成立/无定论 by running it), ③ uncertain (risk points that only coding/testing will settle) — and hand that list to downstream development. Research cannot clear everything; tier-③ belongs to the build phase. **Walking into development with the list is a first-class exit, not a failure.** "Start over" is reserved for directional flaws a reviewer actually named; unclean details never justify it.
+- **使命重述:链交付的是分类清单,不是完美方案。** 首次端到端实跑(xcheck 评自己的提速方案,3 轮、32 条查实)后"看不懂要决定什么、汇报全是黑话"的根因:链被框成"要么收敛要么推倒"——必改清零是及格线,两轮改不干净自动判推倒。新立**终点观(铁律)**:使命是把发现按三类分清——①当场查实(证据在手)②可做实验(跑完归入成立/不成立/无定论)③存疑(编码/测试阶段才见分晓的风险点)——把清单交给下游开发。调研阶段清零一切本就不可能,③类天生属于开发期;**带着清单进开发是一等公民出口,不是失败**。"推倒重来"只留给评审点名方向性错误的情形,细节改不干净永远不构成推倒理由。
+- **Self-contained plain-language delivery, four mandatory questions.** Step 9's chat rendering is now a fixed four-question structure — 【这次评了什么】【发现了什么】(by the three tiers, each with who raised it + how it was verified)【改了什么】【你现在要决定什么】(options + consequences + one recommendation); missing any question = failed delivery. New **自包含铁律**: the chat must be understandable and decidable *without opening any file — SUMMARY.md, the plan, and revisions are archives, never required reading*. A machine-word ban list (`#n`, AGREE/SUGGEST_CHANGES, ①②③, m/round, 终态, 必改项, fanout/collect/triage, 推倒重来…) now requires translation into plain language inside any chat line; the stop-point question must be answerable without looking at SUMMARY.
+- **自包含人话交付,四问缺一即败。** 第 9 步对话呈现固定为四问结构——【这次评了什么】【发现了什么】(按三类,每条带谁提的+怎么核实的)【改了什么】【你现在要决定什么】(选项+后果+一个建议);缺任何一问=交付失败。新立**自包含铁律**:对话呈现必须不看任何文件就能懂、就能选;SUMMARY/方案/修订版只是留底,绝不是"让用户自己去看"的理由。机器词禁用清单(`#n`、AGREE/SUGGEST_CHANGES、①②③、m/round、终态、必改项、fanout/collect/triage、推倒重来…)进对话必须翻译成人话;停点问句不看 SUMMARY 也能选。
+- **Stop point is now neutral two-choice; m=2 no longer auto-condemns.** With must-fix items open, the gate asks "改掉再评一轮,还是带着这份三类清单直接进开发?" — both directions presented as equals (no more "fix first" implication); choosing the list ends the chain as `用户不修` (semantics: handed downstream with the verified list). At round 2 with must-fix still open, the chain does **not** auto-terminal "start over" — it presents both sides (nature of the remaining items vs reviewers' own assessment of the direction) and offers three choices: revise again (no more round cap), ship with the list, or confirm start-over. Revision cap is now soft.
+- **停点改中性两选;m=2 不再自动判死。** 必改非空时停点问"这 N 条已查实的问题:现在改掉再评一轮,还是直接带着这份三类清单进入开发?"——两个方向平等呈现,不再暗示"改才对";选清单则终态 `用户不修`(语义:带着已验证清单交下游,不是失败)。第 2 轮后必改仍非空时**不自动终态"推倒重来"**,而是把矛盾双方摆全(剩余条目的性质 vs 各家理由段对方向的定性),三选:再修一轮(round=3 起无上限)/ 按现状收工 / 确认推倒。修订上限由硬改软。
+- **Review appendix promoted to the chain's primary deliverable.** The end-of-document appendix is now explicitly framed as *the* handoff artifact for downstream development: tier-① items (what to change + evidence), tier-② results (+ experiment artifacts), tier-③ watch items (trigger + "stop and report, don't silently work around"), plus revision paths and artifacts dir.
+- **评审附录升格为链的主交付物。** 文末附录明确定位为交给下游开发直接消费的交付物:①查实的(改什么+证据)· ②实验已做的(结果+实验产物)· ③存疑的(触发点+命中动作),外加减版路径与产物目录。
+
 ## [0.14.1] - 2026-09-16
 
 ### Changed / 改进
