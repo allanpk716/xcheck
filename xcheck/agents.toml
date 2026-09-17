@@ -51,17 +51,19 @@ timeout_sec     = 2700
 
 [agents.pi]
 installed_check = "pi"
-# 2026-09-17 实验记录:曾尝试 per-run 直连 `pi -p --model bigmodel/glm-5.3` 绕开
-# ccswitch 的 anthropic 兼容端点(该端点当天四次间歇 >60s 挂起),结果 401 —— pi 的
-# bigmodel provider 未配密钥(密钥只在 cc-switch 里)。per-run 路线被鉴权挡死;
-# 根治(pi auth 配 bigmodel 密钥 / 改 cc-switch 路由)属全局配置,走 E'' 备份纪律,
-# 用户拍板后再做。当前靠 smoke_timeout_sec=120 + 冒烟自动重试吸收波动。
+# 2026-09-17 根治(已实施):pi 原默认走 ccswitch 档(bigmodel anthropic 兼容端点),
+# 该端点当天四次间歇 >60s 挂起;已把 pi 全局默认切到 bigmodel coding 端点直连
+# (~/.pi/agent/settings.json defaultProvider=bigmodel/glm-5.3),密钥放
+# models.json 的 bigmodel 通道块(与 cc-switch 原生形状一致)。
+# 注:cc-switch 库里 pi/bigmodel 条目登记的是一把过期密钥(be4 前缀),有效密钥
+# (7e2 前缀,opencode/claude/codex 通道共用)已从 glmcode 条目取用;cc-switch 侧
+# 那条过期记录未动,日后若在 cc-switch UI 里重推 pi 通道需先改对密钥。
+# 回滚:auth.json/settings.json/models.json 的 .bak-20260917-fixpi 复制回去即可。
 run_cmd         = "pi -p"          # non-interactive print mode; prompt passed as trailing message arg
 input_mode      = "arg"
 needs_timeout   = false
 timeout_sec     = 2700
-# 冒烟预算(第 2 步用,缺省 60):pi 这类多轮调用通道在上游降速窗口会整体变慢,
-# 60s 假死(2026-09-17 实测 120s 内正常完成),放宽到 120 减少假阳性击杀。
+# 冒烟预算(第 2 步用,缺省 60):直连后仍保留 120 作缓冲(通道波动防御,便宜保险)。
 smoke_timeout_sec = 120
 
 [agents.kimi]
