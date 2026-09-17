@@ -63,7 +63,7 @@ night = on               # (夜链才有)夜间模式:停点自动决策、终�
 - [x] intake … - [ ] gate               # 11 阶段,顺序固定
 
 ## 终态
-(空 | 收敛(N 轮修订) | 推倒重来 | 无需修订 | 用户不修 | 用户中止 | 完成(diag))
+(空 | 收敛(N 轮修订) | 推倒重来 | 无需修订 | 用户不修 | 夜间收工 | 用户中止 | 完成(diag))
 ```
 
 - **阶段枚举**(顺序):`intake, detect, smoke, fanout, collect, synthesize, triage, verify, experiments, deliverable, gate`。`gate` 勾上 = 停点已答且链已落定。
