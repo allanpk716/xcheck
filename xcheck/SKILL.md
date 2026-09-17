@@ -11,7 +11,7 @@ argument-hint: [--night] [--agents a,b,c] [<问题描述或方案>]
 
 ## 1. 抠旗标(--night / --agents,可选)
 
-若 `$ARGUMENTS` 含独立 token `--night`(布尔,无值):把它从 `$ARGUMENTS` 删除,设 `NIGHT_MODE = 1`(夜链:整链无人值守,第 0 步确认与第 9 步停点自动拍板,评审终态后接 flow 第 11 步"写计划 → 子代理执行";细节全在 flow.md)。可与 `--agents` 并用,顺序不限。**夜链操作前提**:夜间会话要用免弹窗权限模式跑(bypassPermissions 或预放行常用命令),否则子代理一条 Bash 权限弹窗能挂整夜。
+若 `$ARGUMENTS` 含独立 token `--night`(布尔,无值):把它从 `$ARGUMENTS` 删除,设 `NIGHT_MODE = 1`(夜链:整链无人值守,第 0 步确认与第 9 步停点自动拍板,终态收尾后接 flow 第 11 步"写计划 → 子代理执行";细节全在 flow.md)。可与 `--agents` 并用,顺序不限。**夜链操作前提**:夜间会话要用免弹窗权限模式跑(bypassPermissions 或预放行常用命令),否则子代理一条 Bash 权限弹窗能挂整夜。
 
 若 `$ARGUMENTS` 含 `--agents`:其值 = 紧跟后**一个空白分隔 token**(纯逗号串,如 `codex,kimi`,不含空格)。把 `--agents <token>` 从 `$ARGUMENTS` 删掉,剩余文本 = 待分类内容。token 非空 → `OVERRIDE_AGENTS = <拆成的名字列表>`;名字不在 agents.toml 的 `[agents.<name>]` → **报错停住**,打印"名字 X 不在 agents.toml;可用 agent:<列出所有 [agents.*] key>",不继续。token 为空 → 当没敲。
 
