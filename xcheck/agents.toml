@@ -51,10 +51,18 @@ timeout_sec     = 2700
 
 [agents.pi]
 installed_check = "pi"
+# 2026-09-17 实验记录:曾尝试 per-run 直连 `pi -p --model bigmodel/glm-5.3` 绕开
+# ccswitch 的 anthropic 兼容端点(该端点当天四次间歇 >60s 挂起),结果 401 —— pi 的
+# bigmodel provider 未配密钥(密钥只在 cc-switch 里)。per-run 路线被鉴权挡死;
+# 根治(pi auth 配 bigmodel 密钥 / 改 cc-switch 路由)属全局配置,走 E'' 备份纪律,
+# 用户拍板后再做。当前靠 smoke_timeout_sec=120 + 冒烟自动重试吸收波动。
 run_cmd         = "pi -p"          # non-interactive print mode; prompt passed as trailing message arg
 input_mode      = "arg"
 needs_timeout   = false
 timeout_sec     = 2700
+# 冒烟预算(第 2 步用,缺省 60):pi 这类多轮调用通道在上游降速窗口会整体变慢,
+# 60s 假死(2026-09-17 实测 120s 内正常完成),放宽到 120 减少假阳性击杀。
+smoke_timeout_sec = 120
 
 [agents.kimi]
 installed_check = "kimi"

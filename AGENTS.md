@@ -30,8 +30,9 @@ flow.md(主会话执行,严格按步走)
   第 1 步  detect.sh 探测;已装 <2 → 停。定选集(一条道,无弹窗):
              OVERRIDE_AGENTS > default_agents(坏名防御剔除)> 报错提示先设默认集;
              SELECTED = 候选 ∩ INSTALLED(缺员降级注明)
-  第 2 步  冒烟:每家 run-agent.sh --timeout 60,判据 = exitcode 0 且
-             stdout 含 "西瓜47"(读文件回显);失败剔除并落 <name>.failed.md;
+  第 2 步  冒烟:每家 run-agent.sh --timeout <smoke_timeout_sec|60>,判据 = exitcode 0
+             且 stdout 含 "西瓜47"(读文件回显);124 超时自动原样重跑一次(仅一次,
+             重跑过=慢非死,2026-09-17 四次实证);失败剔除并落 <name>.failed.md;
              幸存 <2 → 停
   第 3 步  备料:内容层(proposal.md/input.md/context.md 落 <ts>/,文件路径
              输入用 cp 快照)+ 指令层(prompt.txt,≤2KB,模板槽位填绝对正斜杠路径);

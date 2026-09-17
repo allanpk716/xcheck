@@ -54,7 +54,7 @@ mkdir -p ~/.claude/skills && cp -r xcheck xcheck-setup ~/.claude/skills/
    │                     (文件 > 固化讨论 > 诊断),一个确认窗打包过目
    │  输入自包含 ──────→ 词表自动路由 review | diag,静默附带对话背景
    ▼
- 检测 + 冒烟预检(每家 ≤60s 读文件回显;坏家在派发前剔除)
+ 检测 + 冒烟预检(每家读文件回显,预算按通道配置,超时自动重试一次;坏家在派发前剔除)
    ▼
  并行盲评:每家一个隔离 subagent,agent 自己读内容文件,prompt 只是 ≤2KB 指令层
    ▼

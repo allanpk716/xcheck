@@ -41,7 +41,7 @@
 5. 同构(全 claude 或 <2 家)→ **不拦**,第 9 步 SUMMARY 顶部标注 "⚠️ 本次为同构,异构价值未体现"。
 6. 候选集写进 PROGRESS 的 `selected`(冒烟后更新为幸存者),勾 `detect`。
 
-## 第 2 步:冒烟预检(SELECTED 每家 ≤60s)
+## 第 2 步:冒烟预检(SELECTED 每家;预算 per-agent,超时自动重试一次)
 
 1. 备两个固定文件(一轮一次;第二条 printf 的 `<cwd>` 代入实际绝对路径、正斜杠):
 ```
@@ -49,11 +49,13 @@ mkdir -p <cwd>/.xcheck
 printf '西瓜47' > <cwd>/.xcheck/smoke.txt
 printf '读文件 <cwd>/.xcheck/smoke.txt(绝对路径、正斜杠),原样回复文件里的内容,不要加别的字。\n' > <cwd>/.xcheck/smoke-prompt.txt
 ```
-2. 对 SELECTED 每家,主会话**前台**跑(阻塞 ≤~75s,远在前台 600s 上限内):
+2. 对 SELECTED 每家,主会话**前台**跑(阻塞 ≤~2 分钟,在前台 600s 上限内)。**预算 = 该家在 agents.toml 的 `smoke_timeout_sec`,缺省 60**:
 ```
-bash ~/.claude/skills/xcheck/lib/run-agent.sh <name> <cwd>/.xcheck/smoke-prompt.txt --timeout 60
+bash ~/.claude/skills/xcheck/lib/run-agent.sh <name> <cwd>/.xcheck/smoke-prompt.txt --timeout <预算>
 ```
-3. 判定(产物落 `.xcheck/` 根):`.xcheck/<name>.exitcode` 为 **0** 且 `.xcheck/<name>.raw.stdout` 含 `西瓜47` → 可用(CLI 活性 ✓ + 读文件能力 ✓ + 传参机制 ✓)。**其它**(124 超时;65/66/67 脚本层故障;非零 CLI 码 = 401 欠费/未登录/损坏;exit 0 但没有 `西瓜47` = 非交互读不了文件)→ 剔除,告知用户"<name> 预检失败:<exitcode + run.log/stderr 末行>,本轮跳过",落 `<cwd>/.xcheck/<name>.failed.md`。
+3. 判定(产物落 `.xcheck/` 根):`.xcheck/<name>.exitcode` 为 **0** 且 `.xcheck/<name>.raw.stdout` 含 `西瓜47` → 可用(CLI 活性 ✓ + 读文件能力 ✓ + 传参机制 ✓)。
+   - **124 超时 → 自动原样重跑一次**(同预算,每家最多一次;多轮调用通道有 30s~120s 级方差,一次超时不足以判死——2026-09-17 四次实证均为"慢非死")。重跑 exit 0 且含 `西瓜47` → 可用,failed.md 里记一行"首跑超时,重试通过"备查。
+   - 重跑仍超时,或 **65/66/67 脚本层故障、非零 CLI 码(401 欠费/未登录/损坏)、exit 0 但没有 `西瓜47`(非交互读不了文件)** → 剔除,告知用户"<name> 预检失败:<exitcode + run.log/stderr 末行>,本轮跳过",落 `<cwd>/.xcheck/<name>.failed.md`(两次结果都记)。
 4. 剔除后 <2 家 → 按第 1 步同款话术停。**幸存者 = 最终 SELECTED**,更新 PROGRESS 的 `selected`,勾 `smoke`。
 
 > 冒烟必须带读文件、必须走 run-agent.sh(与实跑同机制):第 3 步起方案全文靠 agent 自己读文件,读不了文件的家整轮只能产空评,必须在 fan-out 前拦下;预检与实跑同机制才闭合"预检绿 ≠ 实跑绿"盲区(2026-08-15 pi 401 实证)。

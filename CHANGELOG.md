@@ -3,6 +3,15 @@
 All notable changes to `xcheck`. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 本文件记录 xcheck 的所有显著变更。
 
+## [0.15.1] - 2026-09-17
+
+### Changed / 改进
+
+- **Smoke precheck: per-agent budget + one automatic retry on timeout.** Multi-call channels (pi) slow down as a whole when their upstream degrades — the fixed 60s budget produced false kills (four same-day occurrences: two 61s stalls recovered on retry, one double-stall recovered at 120s). Step 2 now reads a per-agent `smoke_timeout_sec` from agents.toml (default 60; pi ships 120) and auto-re-runs a timed-out smoke exactly once before excluding the agent ("slow, not dead" — verified pattern); non-timeout failures (65/66/67, non-zero CLI codes, echo-miss) still exclude immediately. Tested: `bash xcheck/tests/run-agent.test.sh` 33/33.
+- **冒烟预检:按通道配预算 + 超时自动重试一次。** 多轮调用通道(pi)在上游降速窗口整体变慢——固定 60s 预算产生假击杀(当天四次:两次 61s 停顿重试即过,一次两连停 120s 过)。第 2 步改读 agents.toml 的 per-agent `smoke_timeout_sec`(缺省 60;pi 出厂 120),超时自动原样重跑一次(仅一次)才剔除("慢非死",实证模式);非超时失败(65/66/67、非零 CLI 码、回显缺失)仍立即剔除不重试。已跑 `bash xcheck/tests/run-agent.test.sh` 33/33。
+- **Recorded experiment: pi per-run direct route to the bigmodel coding endpoint is auth-blocked.** `pi -p --model bigmodel/glm-5.3` returns 401 — the bigmodel provider in pi's config carries no API key (keys live only in cc-switch). The root fix (put the key in pi's auth, or change cc-switch's routing) is global-config territory and stays behind the backup/verify/rollback discipline until the user opts in; agents.toml keeps the finding as a comment. flake absorption currently rests on the budget+retry above.
+- **实验记录:pi 直连 bigmodel coding 端点的 per-run 路线被鉴权挡死。** `pi -p --model bigmodel/glm-5.3` 返回 401——pi 配置里的 bigmodel provider 没有密钥(密钥只在 cc-switch)。根治(给 pi 配密钥 / 改 cc-switch 路由)属全局配置,留在备份-验证-回滚纪律后待用户拍板;agents.toml 以注释留档。波动吸收目前靠上面的预算+重试。
+
 ## [0.15.0] - 2026-09-17
 
 ### Changed / 改进
