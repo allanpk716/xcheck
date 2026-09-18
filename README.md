@@ -44,7 +44,7 @@ mkdir -p ~/.claude/skills && cp -r xcheck xcheck-setup ~/.claude/skills/
 /xcheck 帮我看看这个方案行不行:<贴方案全文>
 /xcheck 为什么这个服务一起动就崩:<完整报错栈>
 /xcheck --night 评审 docs/superpowers/specs/2026-09-16-foo-design.md
-                   ← 夜链:评审完自动固化 spec、拆票、逐票实施,早上看本地分支和晨报
+                   ← 夜链:评审完自动固化 spec、拆票、逐票实施,每票推远端,收工开 PR,早上看 PR 和晨报
 /xcheck            ← 裸敲:续跑未完成的链,或从刚才的对话里猜你要评什么
 ```
 
@@ -109,9 +109,9 @@ mkdir -p ~/.claude/skills && cp -r xcheck xcheck-setup ~/.claude/skills/
 白天聊完方案,睡前敲 `/xcheck --night 评审 <方案>` 就去睡:
 
 - 评审段照常全自动;**停点不等你**——round 0 查出必改就自动修订(原稿不动)并复审一轮;round 1 仍有必改就自动"带清单收工",终态记 `夜间收工`。
-- 收工后自动接三跳(Matt Pocock 主流程的下游):`to-spec` 把评审后的方案+附录固化成实施 spec(落本地文件,夜里不发 issue tracker;附录里"开发时要盯"的条目直接进 spec)→ `to-tickets` 拆成 tracer-bullet 票(本地 `.scratch/<feature>/issues/`,每票端到端竖切、带验收标准和阻塞关系)→ 隔离 worktree 里**逐票实施**:每票一个全新子代理,TDD 红绿循环写码,独立评审者按双轴(Spec 符合 + 代码质量)审这一票,最后终局全分支评审。
-- **安全栏**:不 push、不开 PR、不合并、不动你的主工作区;代码全部留在本地 worktree 分支。方案被判"推倒重来"或链被中止 → 不写一行代码,通知你早上处理。
-- 早上看两样:推送通知(Pushover,三节点:评审终态 / spec+拆票完成 / 执行完成)+ 晨报 `.xcheck/<ts>/MORNING.md`(评了什么 / 改了什么 / 执行了什么 / 要决定什么 + 子代理的全部裁决)。合不合并、要不要 PR,你人工走 finishing-a-development-branch。
+- 收工后自动接三跳(Matt Pocock 主流程的下游):`to-spec` 把评审后的方案+附录固化成实施 spec(落本地文件,夜里不发 issue tracker;附录里"开发时要盯"的条目直接进 spec)→ `to-tickets` 拆成 tracer-bullet 票(本地 `.scratch/<feature>/issues/`,每票端到端竖切、带验收标准和阻塞关系)→ 隔离 worktree 里**逐票实施**:每票一个全新子代理,TDD 红绿循环写码,独立评审者按双轴(Spec 符合 + 代码质量)审这一票,最后终局全分支评审;**每票完成即推远端保存进度**(推的都是测试全绿的完整小步,不是半成品)。
+- **安全栏**:代码改动只在隔离分支;每票自动推远端、收工自动开 PR(只保进度,**绝不自动合并、绝不 force push**);主工作区只落 spec/票这类文档。方案被判"推倒重来"或链被中止 → 不写一行代码(也不推送),通知你早上处理。
+- 早上看三样:推送通知(Pushover 三节点,title 带【项目名】,点开直达 PR)+ PR(收工自动开,base = 你睡前所在的分支)+ 晨报 `.xcheck/<ts>/MORNING.md`(评了什么 / 改了什么 / 执行了什么 / 要决定什么,文末附全部裁定)。对话收尾是三段式:夜链结论 → 简报 → 推荐下一步。合不合并,你在 PR 上拍板——夜里只保进度,不替你合并。
 - 夜里崩了:重敲 `/xcheck --night` 自动续(评审靠 PROGRESS、spec/票靠 NIGHT.md、逐票实施靠 NIGHT.md 里的票级台账,全在盘上)。
 - **前提**:夜间会话要用免弹窗权限模式跑(bypassPermissions 或预放行常用命令),否则子代理一条权限弹窗能挂整夜。
 
@@ -127,7 +127,7 @@ mkdir -p ~/.claude/skills && cp -r xcheck xcheck-setup ~/.claude/skills/
 
 | 命令 | 作用 |
 |---|---|
-| `/xcheck [--night] [--agents a,b,c] [<文字>]` | 整条自动链:路由 → 盲评 → 三分类 → 验证 → 停点。裸敲 = 查未完成链,没有就从会话上下文解析评审对象(一个确认窗)。入口先问"自动推进还是正常交互"(默认推荐自动);自动/`--night` = 评审完自动接"固化 spec → 拆票 → 逐票 TDD 实施 + 双轴评审",代码停本地 worktree 分支,晨报叫早。 |
+| `/xcheck [--night] [--agents a,b,c] [<文字>]` | 整条自动链:路由 → 盲评 → 三分类 → 验证 → 停点。裸敲 = 查未完成链,没有就从会话上下文解析评审对象(一个确认窗)。入口先问"自动推进还是正常交互"(默认推荐自动);自动/`--night` = 评审完自动接"固化 spec → 拆票 → 逐票 TDD 实施 + 双轴评审",每票自动推远端、收工自动开 PR,晨报叫早。 |
 | `/xcheck-setup` | 检测 / 验证 / 登记 agent。子命令见下。 |
 
 `/xcheck` 的输入形态:
@@ -166,9 +166,9 @@ mkdir -p ~/.claude/skills && cp -r xcheck xcheck-setup ~/.claude/skills/
 │   ├── <agent>.exitcode 等        #   执行 supervisor 取证(实际命令/运行日志/原始管道)
 │   ├── <agent>.failed.md          #   失败记录(有才建)
 │   ├── exp/                       #   ②类实验的临时文件,留底不删
-│   ├── NIGHT.md                   #   (夜链)下游接续进度:review/plan/impl/finish+票级台账
+│   ├── NIGHT.md                   #   (夜链)下游接续进度:review/plan/impl/finish+票级台账+push/pr 结果
 │   ├── night-intake.md            #   (夜链)第 0 步解析留档(夜里不弹窗的过目替代)
-│   ├── MORNING.md                 #   (夜链)晨报:四问总交付 + 执行裁决清单(收尾才有)
+│   ├── MORNING.md                 #   (夜链)晨报:四问总交付 + 文末裁定与停靠附录(收尾才有)
 │   └── SUMMARY.md                 #   机器账:结论区 + 三分类明细 + 逐条证据
 ├── smoke.txt / smoke-prompt.txt   # 冒烟固定文件
 └── <agent>.failed.md              # 冒烟淘汰记录
@@ -198,7 +198,7 @@ mkdir -p ~/.claude/skills && cp -r xcheck xcheck-setup ~/.claude/skills/
 - **非交互 `claude -p`** 无授权时读不了工作目录外的路径 —— xcheck 的内容文件全在 `<cwd>/.xcheck/` 下,不受影响;手工测试把文件放别处才会踩到。
 - **大文档**没有命令行长度问题:指令层与内容层分离,全文由 agent 自己读文件,绕开 Windows 32767 字符上限。
 - **修订软上限 2 轮**:第 2 轮后仍有已查实问题时停下来让你拍板(再修 / 带清单收工 / 确认推倒),不自动判推倒。
-- **夜链不 push 不合并**:`--night` 的代码改动停在本地 worktree 分支,合并 / PR 是早上的手工决定;评审判"推倒重来"、链被中止或 diag 模式不接下游(不写代码)。
+- **夜链只保进度不合并**:`--night` 每票自动推远端、收工自动开 PR,但绝不自动合并、绝不 force push——合并是早上的手工决定;评审判"推倒重来"、链被中止或 diag 模式不接下游(不写代码,也不推送)。
 - 在 **Windows + Git Bash** 上开发与实测;其它 bash 环境理论可用,未系统验证。
 
 ## 仓库结构
