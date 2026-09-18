@@ -44,7 +44,7 @@ mkdir -p ~/.claude/skills && cp -r xcheck xcheck-setup ~/.claude/skills/
 /xcheck 帮我看看这个方案行不行:<贴方案全文>
 /xcheck 为什么这个服务一起动就崩:<完整报错栈>
 /xcheck --night 评审 docs/superpowers/specs/2026-09-16-foo-design.md
-                   ← 夜链:评审完自动写实施计划+子代理执行,早上看本地分支和晨报
+                   ← 夜链:评审完自动固化 spec、拆票、逐票实施,早上看本地分支和晨报
 /xcheck            ← 裸敲:续跑未完成的链,或从刚才的对话里猜你要评什么
 ```
 
@@ -111,7 +111,7 @@ mkdir -p ~/.claude/skills && cp -r xcheck xcheck-setup ~/.claude/skills/
 - 评审段照常全自动;**停点不等你**——round 0 查出必改就自动修订(原稿不动)并复审一轮;round 1 仍有必改就自动"带清单收工",终态记 `夜间收工`。
 - 收工后自动接三跳(Matt Pocock 主流程的下游):`to-spec` 把评审后的方案+附录固化成实施 spec(落本地文件,夜里不发 issue tracker;附录里"开发时要盯"的条目直接进 spec)→ `to-tickets` 拆成 tracer-bullet 票(本地 `.scratch/<feature>/issues/`,每票端到端竖切、带验收标准和阻塞关系)→ 隔离 worktree 里**逐票实施**:每票一个全新子代理,TDD 红绿循环写码,独立评审者按双轴(Spec 符合 + 代码质量)审这一票,最后终局全分支评审。
 - **安全栏**:不 push、不开 PR、不合并、不动你的主工作区;代码全部留在本地 worktree 分支。方案被判"推倒重来"或链被中止 → 不写一行代码,通知你早上处理。
-- 早上看两样:推送通知(claude-notify,三节点:评审终态 / 计划落盘 / 执行完成)+ 晨报 `.xcheck/<ts>/MORNING.md`(评了什么 / 改了什么 / 执行了什么 / 要决定什么 + 子代理的全部裁决)。合不合并、要不要 PR,你人工走 finishing-a-development-branch。
+- 早上看两样:推送通知(claude-notify,三节点:评审终态 / spec+拆票完成 / 执行完成)+ 晨报 `.xcheck/<ts>/MORNING.md`(评了什么 / 改了什么 / 执行了什么 / 要决定什么 + 子代理的全部裁决)。合不合并、要不要 PR,你人工走 finishing-a-development-branch。
 - 夜里崩了:重敲 `/xcheck --night` 自动续(评审靠 PROGRESS、计划靠 NIGHT.md、执行靠执行侧自己的账本,全在盘上)。
 - **前提**:夜间会话要用免弹窗权限模式跑(bypassPermissions 或预放行常用命令),否则子代理一条权限弹窗能挂整夜。
 
