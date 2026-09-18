@@ -104,10 +104,12 @@ mkdir -p ~/.claude/skills && cp -r xcheck xcheck-setup ~/.claude/skills/
 
 ### 夜链:--night,睡前一把梭
 
+入口一问:敲 `/xcheck <方案>` 会先问你一句——**自动推进到底(默认推荐)还是正常交互**;选自动就等于夜链。赶时间可以直接 `/xcheck --night`,连这一问都免。
+
 白天聊完方案,睡前敲 `/xcheck --night 评审 <方案>` 就去睡:
 
 - 评审段照常全自动;**停点不等你**——round 0 查出必改就自动修订(原稿不动)并复审一轮;round 1 仍有必改就自动"带清单收工",终态记 `夜间收工`。
-- 收工后自动接两跳:调 superpowers:writing-plans 写实施计划(评审附录里"开发时要盯"的条目直接进计划的全局约束),再在**隔离 worktree** 里用 superpowers:subagent-driven-development 逐任务执行、逐任务评审、终局全分支评审。
+- 收工后自动接三跳(Matt Pocock 主流程的下游):`to-spec` 把评审后的方案+附录固化成实施 spec(落本地文件,夜里不发 issue tracker;附录里"开发时要盯"的条目直接进 spec)→ `to-tickets` 拆成 tracer-bullet 票(本地 `.scratch/<feature>/issues/`,每票端到端竖切、带验收标准和阻塞关系)→ 隔离 worktree 里**逐票实施**:每票一个全新子代理,TDD 红绿循环写码,独立评审者按双轴(Spec 符合 + 代码质量)审这一票,最后终局全分支评审。
 - **安全栏**:不 push、不开 PR、不合并、不动你的主工作区;代码全部留在本地 worktree 分支。方案被判"推倒重来"或链被中止 → 不写一行代码,通知你早上处理。
 - 早上看两样:推送通知(claude-notify,三节点:评审终态 / 计划落盘 / 执行完成)+ 晨报 `.xcheck/<ts>/MORNING.md`(评了什么 / 改了什么 / 执行了什么 / 要决定什么 + 子代理的全部裁决)。合不合并、要不要 PR,你人工走 finishing-a-development-branch。
 - 夜里崩了:重敲 `/xcheck --night` 自动续(评审靠 PROGRESS、计划靠 NIGHT.md、执行靠执行侧自己的账本,全在盘上)。
@@ -125,7 +127,7 @@ mkdir -p ~/.claude/skills && cp -r xcheck xcheck-setup ~/.claude/skills/
 
 | 命令 | 作用 |
 |---|---|
-| `/xcheck [--night] [--agents a,b,c] [<文字>]` | 整条自动链:路由 → 盲评 → 三分类 → 验证 → 停点。裸敲 = 查未完成链,没有就从会话上下文解析评审对象(一个确认窗)。加 `--night` = 夜链:停点自动拍板,评审完接"写计划 + 子代理执行",代码停本地 worktree 分支,晨报叫早。 |
+| `/xcheck [--night] [--agents a,b,c] [<文字>]` | 整条自动链:路由 → 盲评 → 三分类 → 验证 → 停点。裸敲 = 查未完成链,没有就从会话上下文解析评审对象(一个确认窗)。入口先问"自动推进还是正常交互"(默认推荐自动);自动/`--night` = 评审完自动接"固化 spec → 拆票 → 逐票 TDD 实施 + 双轴评审",代码停本地 worktree 分支,晨报叫早。 |
 | `/xcheck-setup` | 检测 / 验证 / 登记 agent。子命令见下。 |
 
 `/xcheck` 的输入形态:
@@ -164,7 +166,7 @@ mkdir -p ~/.claude/skills && cp -r xcheck xcheck-setup ~/.claude/skills/
 │   ├── <agent>.exitcode 等        #   执行 supervisor 取证(实际命令/运行日志/原始管道)
 │   ├── <agent>.failed.md          #   失败记录(有才建)
 │   ├── exp/                       #   ②类实验的临时文件,留底不删
-│   ├── NIGHT.md                   #   (夜链)下游接续进度:review/plan/sdd/finish
+│   ├── NIGHT.md                   #   (夜链)下游接续进度:review/plan/impl/finish+票级台账
 │   ├── night-intake.md            #   (夜链)第 0 步解析留档(夜里不弹窗的过目替代)
 │   ├── MORNING.md                 #   (夜链)晨报:四问总交付 + 执行裁决清单(收尾才有)
 │   └── SUMMARY.md                 #   机器账:结论区 + 三分类明细 + 逐条证据
