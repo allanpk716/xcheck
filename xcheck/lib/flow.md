@@ -234,7 +234,7 @@ RESULT_SHAPE = <diag 结构(根因/证据/置信度/建议) | review 结构(裁�
      a. 记 BASE=当前 HEAD;派 fresh implementer subagent:brief = 票文件全文 + spec 路径 + 前票已定接口与裁定;要求 **TDD**(先写失败测试跑红 → 最小实现跑绿)→ 跑覆盖测试 → commit(一票可多 commit);模型:单文件机械票用便宜档,跨文件/含设计判断票用中档;回报四态(DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / Blocked)。
      b. 回报处理:DONE_WITH_CONCERNS 先读疑虑再定;NEEDS_CONTEXT 补上下文重派;Blocked 主会话裁定(拆小 / 换更强模型 / 跳过停靠记账),不硬闯。
      c. 派独立 reviewer subagent 做**双轴评审**(Spec 符合 = 票的验收标准逐条核;Standards = 代码质量),输入 = 票文件 + BASE..HEAD diff 打包文件。发现 Critical/Important → 修复环:R≤3 resume 原实施者,R4-5 换更强模型 fresh 重派,每轮修复后一次 scoped re-review(只核发现与修复 diff 新破损),**每票上限 5 轮**;cap 后逐条裁定(评审过严/可争议 → 停靠;真实但无下游依赖 → 停靠;真实且承重 → 最小修正+记账)。Minor 记 NIGHT 停靠清单,供终局裁量。停靠票在票级台账记 `票 NN: 停靠(<原因>)`,不再重跑。
-     d. 票完成:NIGHT 的票级台账追加一行(格式见文末),半夜崩了重敲续跑从第一张未 complete 的票起。
+     d. 票完成:NIGHT 的票级台账追加一行(格式见文末),半夜崩了重敲续跑从第一张台账无行的票起(停靠票有行即跳过)。
    - 全票完 → **终局全分支 code review**:派最强档 reviewer,输入 = merge-base..HEAD 全分支 diff 包 + 票清单 + 停靠 minor 清单;有发现 → **一轮 fix 派发**(全部发现一次派一个实施者)+ 一次 scoped re-review;残留逐条裁定停靠/记账,无第二波修复。
    完成:NIGHT 勾 `impl`,头部 `impl` 字段填分支名@worktree 路径。
 7. **终局收尾(finish)**:
