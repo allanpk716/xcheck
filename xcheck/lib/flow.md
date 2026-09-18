@@ -242,7 +242,7 @@ RESULT_SHAPE = <diag 结构(根因/证据/置信度/建议) | review 结构(裁�
    - 推通知:"夜链完成:<一句话>。分支 <name> 待你处理,晨报 .xcheck/<ts>/MORNING.md。"(任一步失败变体:停在哪一步、早上敲 `/xcheck --night` 怎么续。)
    - NIGHT 勾 `finish`,夜链结束。合并/PR/保留由用户早上人工走 `superpowers:finishing-a-development-branch`。
 
-**通知纪律**:三个节点(固化 spec 前 / 逐票实施前 / 收尾)用 claude-notify(Pushover + Windows Toast);`PUSHOVER_TOKEN` / `PUSHOVER_USER` 未配置或推送失败 → **跳过不阻塞**(晨报是兜底交付)。通知正文一句话人话,不带机器词。
+**通知纪律**:三个节点(固化 spec 前 / 逐票实施前 / 收尾)+ 失败变体,由主会话直接 curl 推 Pushover;`PUSHOVER_TOKEN` / `PUSHOVER_USER` 未配置或推送失败 → **跳过不阻塞**(晨报是兜底交付)。通知正文一句话人话,不带机器词。**正文必须走 UTF-8 文件,严禁把中文内联进 curl 参数**:先 `printf '<正文>' > <run目录>/notify.txt`,再 `curl -s -F "token=$PUSHOVER_TOKEN" -F "user=$PUSHOVER_USER" -F "message=<notify.txt路径>" https://api.pushover.net/1/messages.json`。原因:Git Bash 调原生 curl.exe 时,命令行参数里的中文经 Windows ANSI(GBK)入口重编码,GBK 字节发到 Pushover 按 UTF-8 解码,整条通知全变问号(2026-09-18 二进制 trace 实证:"夜"上线字节 d2 b9 = GBK);`-F "message=<文件"` 由 curl 自己读文件字节,线上即 UTF-8。
 
 ## 终态收尾(任一终态)
 
