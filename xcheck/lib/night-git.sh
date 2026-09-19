@@ -1,116 +1,81 @@
 #!/usr/bin/env bash
-# Mechanical night Git boundary. Caller owns authorization, snapshots and ledgers.
-# prepare <repo> <branch> <worktree> <baselineOID>
-# verify <repo> <branch> <worktree> <baselineOID> [completedOIDs...]
-# publish <repo> <branch> <worktree> <baselineOID> <remoteName|-> <frozenRemoteURL|->
+# Mechanical night Git boundary (0.22 lean). Caller owns authorization and ledgers.
+# start    <repo> <branch> <start_oid>   — create/take over the night branch in the current checkout
+# snapshot <repo> <refname>              — gc-protected content snapshot of tracked dirty state
+# publish  <repo> <branch> <remote_url>  — push the night branch to an explicit URL: no hooks, no prompts, no force
+# Trust model (ADR 0004): stops LLM mistakes (TM-1) and reviewed-material injection (TM-2).
+# Hostile ambient config (TM-3) is out of scope by decision.
 set -uo pipefail
 fail() { printf 'night-git: %s\n' "$*" >&2; exit 2; }
-[[ $# -ge 5 ]] || fail 'expected command, repo, branch, worktree and baselineOID'
-action="$1"; repo="$2"; branch="$3"; worktree="$4"; baseline="$5"; shift 5
+[[ $# -ge 3 ]] || fail 'expected command, repo and command arguments'
+action="$1"; repo="$2"; shift 2
 case "$action" in
-  prepare) [[ $# -eq 0 ]] || fail 'prepare takes four arguments';;
-  verify) ;;
-  publish) [[ $# -eq 2 ]] || fail 'publish requires remote name and frozen URL';;
+  start)    [[ $# -eq 2 ]] || fail 'start requires branch and start_oid'; branch="$1"; baseline="$2";;
+  snapshot) [[ $# -eq 1 ]] || fail 'snapshot requires refname'; branch="";;
+  publish)  [[ $# -eq 2 ]] || fail 'publish requires branch and remote URL'; branch="$1"; url="$2";;
   *) fail 'unknown command';;
 esac
 # Ambient Git overrides could silently redirect writes to a different repository.
 for key in GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_NAMESPACE; do
   [[ ! -v "$key" ]] || fail "unsupported ambient override: $key"
 done
-# Reachability is about the recorded commits, not local replacement objects.
-export GIT_NO_REPLACE_OBJECTS=1
 canonical_dir() { (cd -- "$1" && pwd -P); }
 repo="$(canonical_dir "$repo")" || fail 'repository directory is missing'
 [[ "$(git -C "$repo" rev-parse --is-inside-work-tree 2>/dev/null)" == true ]] || fail 'expected a working repository, not a bare repository'
 root="$(git -C "$repo" rev-parse --show-toplevel)" || fail 'cannot resolve repository root'
 repo="$(canonical_dir "$root")" || fail 'cannot resolve repository root'
-common="$(git -C "$repo" rev-parse --path-format=absolute --git-common-dir)" || fail 'cannot resolve common Git directory'
-common="$(canonical_dir "$common")" || fail 'cannot resolve common Git directory'
-[[ "$branch" != -* && "$branch" != HEAD && "$branch" != refs/* ]] || fail 'expected a literal local branch name'
-git check-ref-format "refs/heads/$branch" >/dev/null 2>&1 || fail 'invalid branch name'
-[[ "$worktree" != *$'\n'* && "$worktree" != *$'\r'* ]] || fail 'invalid worktree path'
-if [[ -d "$worktree" ]]; then
-  worktree="$(canonical_dir "$worktree")" || fail 'cannot resolve worktree path'
-else
-  parent="$(canonical_dir "$(dirname -- "$worktree")")" || fail 'worktree parent directory must already exist'
-  leaf="$(basename -- "$worktree")"
-  [[ "$leaf" != . && "$leaf" != .. ]] || fail 'invalid worktree path'
-  worktree="$parent/$leaf"
+if [[ -n "$branch" ]]; then
+  [[ "$branch" != -* && "$branch" != HEAD && "$branch" != refs/* ]] || fail 'expected a literal local branch name'
+  git check-ref-format "refs/heads/$branch" >/dev/null 2>&1 || fail 'invalid branch name'
 fi
-repo_boundary="$repo"; worktree_boundary="$worktree"
-case "${OSTYPE:-}" in
-  msys*|cygwin*|win32*) repo_boundary="${repo_boundary,,}"; worktree_boundary="${worktree_boundary,,}";;
-esac
-[[ "$worktree_boundary" != "$repo_boundary" && "$worktree_boundary" != "$repo_boundary/"* && "$repo_boundary" != "$worktree_boundary/"* ]] || fail 'night worktree must be outside the original repository, not its ancestor'
-full_commit() {
-  local oid="$1" resolved
-  [[ "$oid" =~ ^[0-9a-f]{40}$ || "$oid" =~ ^[0-9a-f]{64}$ ]] || fail 'expected a full lowercase commit OID'
-  resolved="$(git -C "$repo" rev-parse --verify "$oid^{commit}" 2>/dev/null)" || fail "commit is missing: $oid"
-  [[ "$resolved" == "$oid" ]] || fail 'OID must identify a commit, not a tag'
-}
-full_commit "$baseline"
-ref="refs/heads/$branch"
-verify_identity() {
-  local wt_common wt_root current registered=0 field registered_path
-  [[ -d "$worktree" ]] || fail 'recorded worktree is missing; stop for recovery'
-  [[ -f "$worktree/.git" ]] || fail 'expected a linked worktree, not an ordinary directory or repository'
-  wt_root="$(git -C "$worktree" rev-parse --show-toplevel 2>/dev/null)" || fail 'worktree is not valid'
-  wt_root="$(canonical_dir "$wt_root")" || fail 'cannot resolve worktree root'
-  [[ "$wt_root" == "$worktree" ]] || fail 'path is not the worktree root'
-  wt_common="$(git -C "$worktree" rev-parse --path-format=absolute --git-common-dir)" || fail 'cannot resolve worktree ownership'
-  wt_common="$(canonical_dir "$wt_common")" || fail 'cannot resolve worktree ownership'
-  [[ "$wt_common" == "$common" ]] || fail 'worktree belongs to another repository'
-  current="$(git -C "$worktree" symbolic-ref -q HEAD)" || fail 'worktree HEAD is detached'
-  [[ "$current" == "$ref" ]] || fail 'worktree is on the wrong branch'
-  # Registration must agree as well as the .git backlink; no prune/repair here.
-  while IFS= read -r -d '' field; do
-    if [[ "$field" == 'worktree '* ]]; then
-      registered_path="${field#worktree }"
-      if [[ -d "$registered_path" ]]; then
-        registered_path="$(canonical_dir "$registered_path")" || continue
-        [[ "$registered_path" != "$worktree" ]] || registered=1
-      fi
-    fi
-  done < <(git -C "$repo" worktree list --porcelain -z)
-  [[ "$registered" -eq 1 ]] || fail 'worktree is not registered with this repository'
-  git -C "$repo" merge-base --is-ancestor "$baseline" "$ref" || fail 'baseline is not reachable from night branch'
-}
-if [[ "$action" == prepare ]]; then
+
+if [[ "$action" == start ]]; then
+  [[ "$baseline" =~ ^[0-9a-f]{40}$ || "$baseline" =~ ^[0-9a-f]{64}$ ]] || fail 'expected a full lowercase commit OID'
+  ref="refs/heads/$branch"
   if git -C "$repo" show-ref --verify --quiet "$ref"; then
-    verify_identity
-  else
-    [[ ! -e "$worktree" && ! -L "$worktree" ]] || fail 'worktree destination already exists; refusing to overwrite'
-    # A missing directory may still have a registered worktree. Git refuses that
-    # collision itself; never force, prune or remove an existing registration.
-    git -C "$repo" worktree add -b "$branch" -- "$worktree" "$baseline" >&2 || fail 'worktree creation failed; retain state for inspection'
-    verify_identity
+    if [[ "$(git -C "$repo" symbolic-ref -q HEAD)" == "$ref" ]]; then
+      printf 'status=started\nmode=idempotent\n'
+      exit 0
+    fi
+    if git -C "$repo" switch "$branch" >/dev/null 2>&1; then
+      printf 'status=started\nmode=resumed\n'
+      exit 0
+    fi
+    printf 'status=blocked\nreason=operator-changes-conflict\n'
+    exit 1
   fi
-  printf 'status=prepared\n'
+  [[ "$(git -C "$repo" rev-parse HEAD 2>/dev/null)" == "$baseline" ]] || fail 'HEAD moved since intake; night branch was never created; re-freeze the baseline or resolve manually'
+  git -C "$repo" switch -c "$branch" >/dev/null 2>&1 || fail 'branch creation failed'
+  printf 'status=started\nmode=created\n'
   exit 0
 fi
-verify_identity
-if [[ "$action" == verify ]]; then
-  for oid in "$@"; do
-    full_commit "$oid"
-    git -C "$repo" merge-base --is-ancestor "$oid" "$ref" || fail "completed commit is not reachable: $oid"
-  done
-  printf 'status=verified\n'
+
+if [[ "$action" == snapshot ]]; then
+  [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || fail 'expected a simple ref name'
+  # stash create captures tracked dirty state (index+worktree) without touching either;
+  # untracked dirty content is NOT covered (recorded limitation, ADR 0005 appendix).
+  oid="$(git -C "$repo" stash create 2>/dev/null)" || fail 'snapshot creation failed'
+  if [[ -z "$oid" ]]; then
+    printf 'snapshot=none\nreason=clean-tree\n'
+    exit 0
+  fi
+  git -C "$repo" update-ref "refs/xcheck/$1" "$oid" || fail 'cannot protect snapshot ref'
+  printf 'snapshot=%s\nref=refs/xcheck/%s\n' "$oid" "$1"
   exit 0
 fi
-remote="$1"; frozen_url="$2"
-if [[ "$remote" == - && "$frozen_url" == - ]]; then
-  printf 'status=skipped\nreason=no-remote\n'
-  exit 0
+
+# publish
+[[ -n "$url" && "$url" != *$'\n'* && "$url" != *$'\r'* ]] || fail 'invalid remote URL'
+ref="refs/heads/$branch"
+git -C "$repo" show-ref --verify --quiet "$ref" || fail "night branch does not exist: $branch"
+[[ "$(git -C "$repo" symbolic-ref -q HEAD)" == "$ref" ]] || fail 'publish requires the checkout to be on the night branch'
+# Non-interactive surface (TM-1): no terminal prompts, no GUI helpers, no askpass;
+# credential helpers stay enabled (GCM cached credentials are the legitimate HTTPS path).
+export GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never GIT_ASKPASS= SSH_ASKPASS=
+push_args=(push --no-verify --no-follow-tags --recurse-submodules=no -- "$url" "$ref:$ref")
+if [[ "$url" == git@* || "$url" == ssh://* || "$url" == ssh://*:* ]]; then
+  push_args=(-c core.sshCommand='ssh -o BatchMode=yes' "${push_args[@]}")
 fi
-[[ "$remote" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ && "$frozen_url" != - && -n "$frozen_url" && "$frozen_url" != *$'\r'* && "$frozen_url" != *$'\n'* ]] || fail 'invalid remote name or frozen URL pair'
-fetch_url="$(git -C "$worktree" remote get-url --all "$remote" 2>/dev/null)" || fail 'recorded remote is missing'
-push_url="$(git -C "$worktree" remote get-url --push --all "$remote" 2>/dev/null)" || fail 'cannot resolve push destination'
-[[ "$fetch_url" == "$frozen_url" && "$push_url" == "$frozen_url" && "$frozen_url" != *$'\n'* ]] || fail 'remote URL changed or has multiple/different push destinations'
-mirror="$(git -C "$worktree" config --bool --get "remote.$remote.mirror" 2>/dev/null)"
-[[ -z "$mirror" || "$mirror" == false ]] || fail 'mirror remote is not an allowed publication target'
-# An explicit non-force refspec overrides push.default/remote.push. Disable tag
-# following and submodule pushes so this action publishes only the night branch.
-# Git transport diagnostics can echo credential-bearing URLs; expose only the
-# publication status, never raw transport stdout/stderr.
-git -C "$worktree" -c push.followTags=false push --porcelain --no-follow-tags --recurse-submodules=no -- "$remote" "$ref:$ref" >/dev/null 2>&1 || { printf 'night-git: publication failed; local worktree and commits retained\n' >&2; exit 1; }
+# Transport diagnostics can echo credential-bearing URLs; expose only the outcome.
+git -C "$repo" "${push_args[@]}" >/dev/null 2>&1 || { printf 'night-git: publication failed; local branch and commits retained\n' >&2; exit 1; }
 printf 'status=published\n'

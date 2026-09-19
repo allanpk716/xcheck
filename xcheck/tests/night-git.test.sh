@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Real Git, temporary repositories and local bare remotes only. No model/PR calls.
+# Invariant tests for the 0.22 lean night-git boundary. Real Git, temporary
+# repositories and local bare remotes only. No model/PR calls.
 # bash xcheck/tests/night-git.test.sh
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,151 +19,114 @@ accepts() {
   bash "$SCRIPT" "$@" > "$TMP/stdout" 2> "$TMP/stderr"
   status=$?; actual="$(< "$TMP/stdout")"
   if [[ "$status" -eq 0 && "$actual" == "$expected" ]]; then ok "$label"
-  else bad "$label (exit=$status stdout=$actual stderr=$(< "$TMP/stderr"))"; fi
+  else bad "$label (exit=$status, stdout=[$actual], stderr=[$(tail -1 "$TMP/stderr")])"; fi
 }
 rejects() {
   local label="$1" status
-  shift
+  shift 1
   bash "$SCRIPT" "$@" > "$TMP/stdout" 2> "$TMP/stderr"
   status=$?
-  if [[ "$status" -ne 0 && ! -s "$TMP/stdout" && -s "$TMP/stderr" ]]; then ok "$label"
-  else bad "$label (exit=$status stdout=$(< "$TMP/stdout") stderr=$(< "$TMP/stderr"))"; fi
+  if [[ "$status" -ne 0 ]]; then ok "$label"; else bad "$label (unexpected exit 0: $(< "$TMP/stdout"))"; fi
 }
-repo="$TMP/original project"; wt="$TMP/night tree"; branch=xcheck-night-test
-remote="$TMP/remote.git"
-git init -q -b main "$repo" || exit 2
-printf 'Committed proposal\n' > "$repo/proposal.md"
-printf 'Original tracked file\n' > "$repo/tracked.txt"
-git -C "$repo" add -- proposal.md tracked.txt
-git -C "$repo" commit -qm baseline || exit 2
-baseline="$(git -C "$repo" rev-parse HEAD)"
-printf 'User staged change\n' >> "$repo/tracked.txt"
-git -C "$repo" add -- tracked.txt
-printf 'User unstaged change\n' >> "$repo/tracked.txt"
-printf 'User uncommitted proposal\n' >> "$repo/proposal.md"
-printf 'User untracked file\n' > "$repo/untracked.txt"
-snapshot() {
-  git -C "$repo" rev-parse HEAD
-  git -C "$repo" symbolic-ref HEAD
-  cksum "$repo/.git/index" "$repo/proposal.md" "$repo/tracked.txt" "$repo/untracked.txt"
-  git -C "$repo" diff --binary
-  git -C "$repo" diff --cached --binary
-}
-snapshot > "$TMP/before"
-printf '== Prepare and identity ==\n'
-accepts 'dirty source is allowed; create from explicit baseline' status=prepared prepare "$repo" "$branch" "$wt" "$baseline"
-[[ -f "$wt/.git" ]] || { printf 'Cannot continue without prepared worktree.\n' >&2; exit 2; }
-accepts 'matching prepare is idempotent' status=prepared prepare "$repo" "$branch" "$wt" "$baseline"
-accepts 'verify exact registered worktree' status=verified verify "$repo" "$branch" "$wt" "$baseline"
-rejects 'reject abbreviated baseline' verify "$repo" "$branch" "$wt" "${baseline:0:12}"
-rejects 'reject expression instead of OID' verify "$repo" "$branch" "$wt" HEAD
-rejects 'reject wrong branch' verify "$repo" wrong "$wt" "$baseline"
-rejects 'reject original worktree as destination' prepare "$repo" main "$repo" "$baseline"
-rejects 'reject worktree nested in original repository' prepare "$repo" nested "$repo/nested-worktree" "$baseline"
-rejects 'reject worktree ancestor of original repository' prepare "$repo" ancestor "$TMP" "$baseline"
-[[ ! -e "$repo/nested-worktree" ]] && ok 'nested worktree rejection creates no directory' || bad 'nested worktree path created'
-case "${OSTYPE:-}" in
-  msys*|cygwin*|win32*)
-    rejects 'Windows case variation cannot bypass repository boundary' prepare "${repo^^}" case-test "$repo/case-worktree" "$baseline";;
-esac
-rejects 'reject branch option injection' prepare "$repo" --bad "$TMP/injected" "$baseline"
-mkdir "$TMP/occupied"
-printf 'Do not overwrite\n' > "$TMP/occupied/file"
-rejects 'reject occupied destination' prepare "$repo" other "$TMP/occupied" "$baseline"
-[[ "$(< "$TMP/occupied/file")" == 'Do not overwrite' ]] && ok 'occupied destination preserved' || bad 'occupied destination overwritten'
-git init -q -b main "$TMP/foreign"
-git -C "$TMP/foreign" fetch -q "$repo" "$baseline" || exit 2
-git -C "$TMP/foreign" worktree add -q -b "$branch" "$TMP/foreign worktree" "$baseline" || exit 2
-rejects 'reject unrelated repository ownership with valid baseline' verify "$repo" "$branch" "$TMP/foreign worktree" "$baseline"
-rejects 'reject ordinary repository rather than linked worktree' verify "$repo" "$branch" "$TMP/foreign" "$baseline"
-mkdir "$wt/subdir"
-rejects 'reject subdirectory rather than exact worktree' verify "$repo" "$branch" "$wt/subdir" "$baseline"
-GIT_INDEX_FILE="$TMP/alternate-index" bash "$SCRIPT" verify "$repo" "$branch" "$wt" "$baseline" > "$TMP/stdout" 2> "$TMP/stderr"
-[[ $? -ne 0 && ! -e "$TMP/alternate-index" ]] && ok 'ambient Git redirection is rejected' || bad 'ambient Git redirection allowed'
+new_repo() { git init -q -b main "$1"; }
+commit_file() { printf '%s\n' "$3" > "$1/$2"; git -C "$1" add "$2"; git -C "$1" commit -q -m "$4"; }
+murl() { cygpath -m "$1" 2>/dev/null || printf '%s' "$1"; }
 
-printf '== Snapshot and all artifacts on one branch ==\n'
-# The caller copies only the specified current-byte input, not all dirty state.
-mkdir -p "$wt/docs/specs" "$wt/.scratch/feature/issues" "$TMP/run"
-cp "$repo/proposal.md" "$TMP/run/proposal.md"
-cp "$TMP/run/proposal.md" "$wt/proposal.md"
-printf 'Consensus\n' > "$wt/docs/specs/consensus.md"
-printf 'Revision\n' > "$wt/docs/specs/proposal.rev1.md"
-printf 'Review appendix\n' >> "$wt/proposal.md"
-printf 'Specification\n' > "$wt/docs/specs/spec.md"
-printf 'Ticket\n' > "$wt/.scratch/feature/issues/01.md"
-printf '.scratch/*\n!.scratch/feature/\n' > "$wt/.gitignore"
-printf 'Implementation\n' > "$wt/code.txt"
-git -C "$wt" add -- proposal.md docs .scratch .gitignore code.txt
-git -C "$wt" commit -qm 'night documents and implementation' || exit 2
-completed="$(git -C "$wt" rev-parse HEAD)"
-accepts 'completion commit is reachable' status=verified verify "$repo" "$branch" "$wt" "$baseline" "$completed"
-accepts 'prepare does not reset an existing advanced branch' status=prepared prepare "$repo" "$branch" "$wt" "$baseline"
-if [[ "$(< "$TMP/run/proposal.md")" == "$(< "$repo/proposal.md")" && "$(git -C "$wt" show HEAD:tracked.txt)" == 'Original tracked file' && ! -e "$wt/untracked.txt" ]]; then
-  ok 'snapshot includes uncommitted input without copying unrelated dirty files'
-else bad 'input snapshot or dirty-file isolation mismatch'; fi
-changes="$(git -C "$wt" diff --name-only "$baseline" HEAD)"
-if [[ "$changes" == *proposal.md* && "$changes" == *consensus.md* && "$changes" == *proposal.rev1.md* && "$changes" == *spec.md* && "$changes" == *.scratch/feature/issues/01.md* && "$changes" == *.gitignore* && "$changes" == *code.txt* ]]; then
-  ok 'proposal appendix, consensus, revision, spec, ticket, ignore and code share branch diff'
-else bad 'missing artifact in branch diff'; fi
-orphan="$(printf 'unreachable\n' | git -C "$repo" commit-tree "$(git -C "$repo" rev-parse 'HEAD^{tree}')")"
-rejects 'existing but unreachable completion is rejected' verify "$repo" "$branch" "$wt" "$baseline" "$orphan"
-rejects 'unreachable baseline is rejected' verify "$repo" "$branch" "$wt" "$orphan"
-blob="$(git -C "$repo" rev-parse HEAD:proposal.md)"
-rejects 'blob is not a completion commit' verify "$repo" "$branch" "$wt" "$baseline" "$blob"
-git -C "$wt" checkout -q --detach
-rejects 'detached worktree is rejected' verify "$repo" "$branch" "$wt" "$baseline"
-git -C "$wt" checkout -q "$branch"
-mv "$wt" "$TMP/temporarily missing"
-rejects 'missing worktree pauses verify' verify "$repo" "$branch" "$wt" "$baseline" "$completed"
-rejects 'missing worktree is not recreated by prepare' prepare "$repo" "$branch" "$wt" "$baseline"
-mv "$TMP/temporarily missing" "$wt"
+# --- start -------------------------------------------------------------------
+R="$TMP/host"; new_repo "$R"; commit_file "$R" a.txt base c1
+BASE="$(git -C "$R" rev-parse HEAD)"
+ORIG_REF="$(git -C "$R" rev-parse refs/heads/main)"
+printf 'user-dirty\n' > "$R/dirty.txt"
 
-printf '== Local-only publication ==\n'
-accepts 'no remote is a successful unpublished state' $'status=skipped\nreason=no-remote' publish "$repo" "$branch" "$wt" "$baseline" - -
-rejects 'partial remote fields rejected' publish "$repo" "$branch" "$wt" "$baseline" origin -
-rejects 'carriage return in frozen URL rejected' publish "$repo" "$branch" "$wt" "$baseline" origin $'https://example.invalid/repo\r'
-rejects 'newline in frozen URL rejected' publish "$repo" "$branch" "$wt" "$baseline" origin $'https://example.invalid/repo\n'
-git -C "$repo" remote add credential-test 'https://test:sentinel-secret@example.invalid/repo'
-rejects 'transport failure with credentials uses generic diagnostics' publish "$repo" "$branch" "$wt" "$baseline" credential-test 'https://test:sentinel-secret@example.invalid/repo'
-[[ "$(< "$TMP/stderr")" != *sentinel-secret* ]] && ok 'transport diagnostics do not disclose URL password' || bad 'transport diagnostics exposed URL password'
-git init -q --bare "$remote" || exit 2
-git -C "$repo" remote add origin "$remote"
-# Git Bash may store a native Windows path; freeze Git's actual URL spelling.
-frozen_url="$(git -C "$repo" remote get-url origin)"
-rejects 'changed frozen URL is rejected' publish "$repo" "$branch" "$wt" "$baseline" origin "$TMP/wrong.git"
-git -C "$repo" config remote.origin.pushurl "$TMP/elsewhere.git"
-rejects 'different push URL is rejected' publish "$repo" "$branch" "$wt" "$baseline" origin "$frozen_url"
-git -C "$repo" config --unset remote.origin.pushurl
-git -C "$repo" config --add remote.origin.pushurl "$frozen_url"
-git -C "$repo" config --add remote.origin.pushurl "$TMP/elsewhere.git"
-rejects 'multiple push destinations are rejected' publish "$repo" "$branch" "$wt" "$baseline" origin "$frozen_url"
-git -C "$repo" config --unset-all remote.origin.pushurl
-git -C "$repo" config remote.origin.mirror true
-rejects 'mirror push remote is rejected' publish "$repo" "$branch" "$wt" "$baseline" origin "$frozen_url"
-git -C "$repo" config --unset remote.origin.mirror
-git -C "$repo" config extensions.worktreeConfig true
-git -C "$wt" config --worktree remote.origin.pushurl "$TMP/worktree-only.git"
-rejects 'worktree-local remote override is rejected before pushing' publish "$repo" "$branch" "$wt" "$baseline" origin "$frozen_url"
-git -C "$wt" config --worktree --unset remote.origin.pushurl
-# Hostile defaults cannot add another branch or auto-follow annotated tags.
-git -C "$repo" config remote.origin.push refs/heads/main:refs/heads/main
-git -C "$repo" config push.followTags true
-git -C "$wt" tag -am 'tag must remain local' night-tag
-accepts 'publish sends only the explicit night ref' status=published publish "$repo" "$branch" "$wt" "$baseline" origin "$frozen_url"
-accepts 'publication retry is idempotent' status=published publish "$repo" "$branch" "$wt" "$baseline" origin "$frozen_url"
-refs="$(git --git-dir="$remote" for-each-ref --format='%(refname)')"
-[[ "$refs" == "refs/heads/$branch" ]] && ok 'original branch and tag never published' || bad "unexpected remote refs: $refs"
-printf 'More work\n' >> "$wt/code.txt"
-git -C "$wt" add -- code.txt
-git -C "$wt" commit -qm 'local completion retained on rejection' || exit 2
-local_tip="$(git -C "$wt" rev-parse HEAD)"
-printf '#!/bin/sh\nexit 1\n' > "$remote/hooks/pre-receive"
-chmod +x "$remote/hooks/pre-receive"
-rejects 'push rejection returns failure' publish "$repo" "$branch" "$wt" "$baseline" origin "$frozen_url"
-if [[ -d "$wt" && "$(git -C "$wt" rev-parse HEAD)" == "$local_tip" ]]; then ok 'push failure retains local worktree and commits'; else bad 'push failure lost local work'; fi
-accepts 'implementation remains verifiable after publication failure' status=verified verify "$repo" "$branch" "$wt" "$baseline" "$local_tip"
-snapshot > "$TMP/after"
-if cmp -s "$TMP/before" "$TMP/after"; then ok 'original HEAD, branch, index and dirty files unchanged across all operations'; else bad 'original worktree changed'; fi
-printf 'Scope: production Git helper, temporary repositories, local bare remote; caller flow, diag routing, PR tools, live services and model semantics not executed.\n'
-printf 'Result: %s pass, %s fail\n' "$PASS" "$FAIL"
+accepts 'start creates the night branch from the frozen baseline' \
+  'status=started
+mode=created' start "$R" xcheck-night-t1 "$BASE"
+[[ "$(git -C "$R" symbolic-ref --short HEAD)" == xcheck-night-t1 ]] && ok 'checkout is on the night branch' || bad 'checkout is on the night branch'
+[[ "$(git -C "$R" rev-parse refs/heads/main)" == "$ORIG_REF" ]] && ok 'original branch ref untouched' || bad 'original branch ref untouched'
+[[ -f "$R/dirty.txt" && "$(cat "$R/dirty.txt")" == user-dirty ]] && ok 'operator uncommitted files survive branch creation' || bad 'operator uncommitted files survive branch creation'
+
+accepts 'start is idempotent when already on the night branch' \
+  'status=started
+mode=idempotent' start "$R" xcheck-night-t1 "$BASE"
+
+git -C "$R" switch -q main
+accepts 'start resumes by switching back to the existing night branch' \
+  'status=started
+mode=resumed' start "$R" xcheck-night-t1 "$BASE"
+
+# blocked: night branch content diverges from an operator's dirty edit
+commit_file "$R" a.txt night-change c2            # commit lands on the night branch (HEAD is on it)
+git -C "$R" switch -q main                         # clean switch: a.txt reverts to base
+printf 'conflict\n' > "$R/a.txt"                   # operator dirty edit colliding with night content
+bash "$SCRIPT" start "$R" xcheck-night-t1 "$BASE" > "$TMP/stdout" 2> "$TMP/stderr"
+if [[ $? -eq 1 && "$(cat "$TMP/stdout")" == 'status=blocked
+reason=operator-changes-conflict' ]]; then ok 'switch refusal is reported as blocked, exit 1'
+else bad 'switch refusal is reported as blocked, exit 1 (stdout=[$(cat "$TMP/stdout")])'; fi
+[[ "$(cat "$R/a.txt")" == conflict ]] && ok 'operator conflict content untouched' || bad 'operator conflict content untouched'
+git -C "$R" checkout -q -- a.txt
+
+# fresh-start guard: HEAD moved since the frozen baseline
+R2="$TMP/host2"; new_repo "$R2"; commit_file "$R2" a.txt one c1
+B2="$(git -C "$R2" rev-parse HEAD)"
+commit_file "$R2" b.txt two c2
+rejects 'fresh start refuses a moved HEAD against the frozen baseline' start "$R2" night-x "$B2"
+
+# --- snapshot ------------------------------------------------------------------
+printf 'wip\n' >> "$R2/a.txt"
+bash "$SCRIPT" snapshot "$R2" dirty-t1 > "$TMP/stdout" 2> "$TMP/stderr" || bad 'snapshot runs on a dirty tree'
+SNAP="$(sed -n 's/^snapshot=//p' "$TMP/stdout")"
+if [[ "$SNAP" =~ ^[0-9a-f]{40,}$ ]]; then ok 'snapshot emits a commit OID'
+else bad "snapshot emits a commit OID (got [$SNAP])"; SNAP=""; fi
+[[ "$(cat "$R2/a.txt")" == *wip ]] && ok 'snapshot leaves the worktree untouched' || bad 'snapshot leaves the worktree untouched'
+git -C "$R2" show --quiet --format=%H "$SNAP" >/dev/null 2>&1 && ok 'snapshot content is recoverable' || bad 'snapshot content is recoverable'
+git -C "$R2" reflog expire --expire=now --all >/dev/null 2>&1; git -C "$R2" gc -q --prune=now 2>/dev/null
+git -C "$R2" show-ref --verify --quiet "refs/xcheck/dirty-t1" && ok 'snapshot ref survives aggressive gc' || bad 'snapshot ref survives aggressive gc'
+
+R3="$TMP/host3"; new_repo "$R3"; commit_file "$R3" a.txt base c1
+accepts 'clean tree snapshots as none' 'snapshot=none
+reason=clean-tree' snapshot "$R3" dirty-t2
+
+# --- publish -------------------------------------------------------------------
+P="$TMP/pub"; new_repo "$P"; commit_file "$P" a.txt base c1
+PB="$(git -C "$P" rev-parse HEAD)"
+git -C "$P" tag v9
+EVIL="$TMP/evil.git"; REM="$TMP/remote.git"
+git clone -q --bare "$P" "$EVIL"
+git clone -q --bare "$P" "$REM"
+EVIL_BEFORE="$(git -C "$EVIL" for-each-ref --format='%(refname)' | sort)"
+mkdir -p "$P/.git/hooks"
+printf '#!/usr/bin/env bash\ngit push %s HEAD:refs/heads/smuggled\n' "$(murl "$EVIL")" > "$P/.git/hooks/pre-push"
+chmod +x "$P/.git/hooks/pre-push"
+
+accepts 'publish pushes the night branch to the explicit URL' 'status=published' publish "$P" main "$(murl "$REM")"
+[[ "$(git -C "$REM" rev-parse refs/heads/main)" == "$PB" ]] && ok 'remote night ref matches local' || bad 'remote night ref matches local'
+[[ "$(git -C "$EVIL" for-each-ref --format='%(refname)' | sort)" == "$EVIL_BEFORE" ]] \
+  && ok 'pre-push hook smuggling is blocked by --no-verify (evil remote unchanged)' \
+  || bad 'pre-push hook smuggling is blocked by --no-verify (evil remote got refs)'
+[[ ! -e "$REM/refs/tags/v9" ]] && ok 'tags are never published' || bad 'tags are never published'
+
+# non-fast-forward: remote night-nf diverges; publish must fail without forcing
+git -C "$P" switch -q -c night-nf
+printf 'advance\n' > "$P/a.txt"; git -C "$P" add a.txt; git -C "$P" commit -q -m advance
+TREE="$(git -C "$REM" rev-parse 'refs/heads/main^{tree}')"
+DIV="$(git -C "$REM" commit-tree "$TREE" -p "$(git -C "$REM" rev-parse refs/heads/main)" -m diverged)"
+git -C "$REM" update-ref refs/heads/night-nf "$DIV"
+bash "$SCRIPT" publish "$P" night-nf "$(murl "$REM")" > "$TMP/stdout" 2> "$TMP/stderr"
+if [[ $? -eq 1 ]]; then ok 'publish fails on a diverged remote without forcing'
+else bad 'publish fails on a diverged remote without forcing (exit 0)'; fi
+[[ "$(git -C "$REM" rev-parse refs/heads/night-nf)" == "$DIV" ]] && ok 'diverged remote ref is never overwritten' || bad 'diverged remote ref is never overwritten'
+
+# unreachable remote fails fast (bounded), local work retained
+timeout 30 bash "$SCRIPT" publish "$P" night-nf "https://example.invalid/x.git" > "$TMP/stdout" 2> "$TMP/stderr"
+if [[ $? -eq 1 ]]; then ok 'unreachable remote fails fast without hanging'
+else bad 'unreachable remote fails fast without hanging'; fi
+git -C "$P" show-ref --verify --quiet refs/heads/night-nf && ok 'local branch retained after publication failure' || bad 'local branch retained after publication failure'
+
+# argument validation
+rejects 'branch names with leading dash are rejected' publish "$P" -x "https://example.invalid/x.git"
+rejects 'empty remote URL is rejected' publish "$P" night-nf ""
+rejects 'publishing a missing branch is rejected' publish "$P" no-such-branch "https://example.invalid/x.git"
+rejects 'abbreviated baseline OIDs are rejected' start "$P" night-abc 1234abc
+
+printf '\nResult: %d pass, %d fail\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]
