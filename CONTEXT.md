@@ -4,7 +4,7 @@
 
 ## Language
 
-> **版本边界**:0.19.0实施审核改进第一批,0.20.0实施第二批交互方式/执行终点解耦,0.21.0新增第三批delivery_schema=1夜链同分支交付。下列review现行术语仅用于 `review_schema = 2`;无该字段的旧review保留旧释义,不重解释历史“必改/收敛”。diag保持旧语义,始终不实施、不建worktree。第四、五批(配置分离、真正权限隔离)尚未实施。权威契约见 [review-contract.md](xcheck/lib/review-contract.md)与[night-delivery.md](xcheck/lib/night-delivery.md),完整目标见[设计](docs/superpowers/specs/2026-09-19-xcheck-review-convergence-and-portability-design.md)与[分批计划](docs/superpowers/plans/2026-09-19-xcheck-review-convergence-and-portability.md)。
+> **版本边界**:0.19~0.21 三批(审核收敛/模式解耦/隔离交付)经 0.22 精简重构定型:账本塌缩、接管检出替代 worktree、不自动开PR、事件驱动并行实施;决策记录见 [ADR 0004-0007](docs/adr/)。下列review现行术语仅用于 `review_schema = 2`;旧协议链一律拒绝续跑,不重解释历史“必改/收敛”。diag保持旧语义,始终不实施。配置分离与真正权限隔离尚未实施。权威契约见 [review-contract.md](xcheck/lib/review-contract.md)与[night-delivery.md](xcheck/lib/night-delivery.md)。
 
 ### 核心模型
 
@@ -74,13 +74,13 @@ _Avoid_: 全量意见转需求、所有③命中都停整链
 一次 `/xcheck` 触发后的自动推进路径:摄入 → 盲评 → 三分类 → 查证① → 实验② → 裁定交付。review正常交互到结果停点再由用户决定是否修订,无人值守按有限策略处理;diag止于汇总与三分类。
 _Avoid_: 全流程(分不清是否含下游实施)
 
-**入口一问(entry choice)**:
-壳在新链且无模式旗标时的一次三选:**完整night(默认推荐)/ 仅无人值守审核 / 正常交互审核**。`--night`和`--auto-review`直接选择对应模式,同时使用报互斥错误,不弹两个串行问题。
-_Avoid_: 把完整night理解为只审核
+**旗标直选(flag-direct entry)**:
+0.22 起入口不再弹选择问:`--night`=完整夜链,`--auto-review`=仅无人值守审核,无旗标=正常交互审核;两旗标互斥。
+_Avoid_: 入口一问(0.21及更早的三选弹窗)、把完整night理解为只审核
 
 **交互方式与执行终点(interaction / target)**:
-所有新PROGRESS保存两个独立维度:interactive/review=正常审核,unattended/review=仅无人值守审核,unattended/implementation=完整night。INTERACTION决定是否问人,TARGET决定是否接第11步;仅review终点不建NIGHT、不通知/推送/PR,但仍允许审核所需本地修订与附录。diag任何入口都不实施;完整night允许NIGHT短稿及可选通知,auto-review diag不建NIGHT、不通知。`run-mode.sh`只规范化并校验MODE_REQUEST及持久化模式,不是执行器或权限授予器。
-_Avoid_: NIGHT_MODE同时代表是否问人和是否实施、无人值守等于实施授权
+所有新PROGRESS保存两个独立维度:interactive/review=正常审核,unattended/review=仅无人值守审核,unattended/implementation=完整night。INTERACTION决定是否问人,TARGET决定是否接第11步;仅review终点不建NIGHT、不通知/推送,但仍允许审核所需本地修订与附录。diag任何入口都不实施;auto-review diag不建NIGHT、不通知。`run-mode.sh`只规范化并校验MODE_REQUEST及持久化模式,不是执行器或权限授予器。
+_Avoid_: 无人值守等于实施授权、派生第三变量代表终点
 
 **仅无人值守审核(auto-review)**:
 `--auto-review`自动审核、必要时最多修订并限定复审一次,到审核交付结束。遇预算或决策边界可使用兼容终态“夜间收工”,不进入实施或发布。
@@ -94,31 +94,39 @@ _Avoid_: 夜链、零本地文件写入模式
 _Avoid_: 会话状态、勾过就一定可跳
 
 **断点续跑**:
-无旗标发现未完成链后确认续跑;显式无人值守旗标仅自动续兼容原链。所有续跑继承账本interaction/target,显式模式不符停止,不改账接管。仅两新字段同时缺失才按旧night=on映射完整night、无night映射正常审核;半缺、非法值、与night标记冲突拒绝。schema2从第一个未勾阶段整段重做,沿next/prev定位最新环。旧未完 review 保留原目录,幂等建立 migrated_from 新环重新审核;旧night还须独立检查delivery_schema与冻结元数据,即使review_schema=2也不能补猜基线;缺失则停止自动恢复并说明需明确新开/专门恢复,不重放旧发布动作。
+无旗标发现未完成链后确认续跑;显式无人值守旗标仅自动续兼容原链。所有续跑继承账本interaction/target,显式模式不符停止,不改账接管。schema2从第一个未勾阶段整段重做,沿next/prev定位最新环。**旧协议链(无review_schema或0.21及更早字段集)一律拒绝续跑+提示新开**,不迁移不重放。
 
 **自动修订预算(auto_revisions_used)**:
-原生新review首环为0,每次自动修订递增并跨环保留。旧链迁移虽然新环round=0,不能重置预算:旧round≥1至少记1,无法核实写unknown并禁止自动再修。
-_Avoid_: 迁移等于获得新一次自动修订许可
+原生新review首环为0,每次自动修订递增并跨环保留;无法核实写unknown并禁止自动再修。
+_Avoid_: 新环round=0等于获得新一次自动修订许可
 
 **终态(terminal state)**:
 七种结束标签:收敛 / 推倒重来 / 无需修订 / 用户不修 / 夜间收工 / 用户中止 / 完成(diag)。schema2 无需修订 = round 0 活动约束空;收敛 = 修订后活动约束空;用户不修 = 用户先交付但保留约束;夜间收工 = 策略到达预算/决策边界后交付;推倒重来仅用户明确放弃。终态是审核段结束,不代表实施完成。
 
 **夜链(night chain)**:
-入口选“完整night”或 `--night` 触发的无人值守实施路径(unattended/implementation)。仅对已确认范围内可修复的阻断最多自动修订一次并限定复审;仅重大待决、需变更已定决策、无可执行修复或一轮后仍有约束则交付夜间收工。随后内联 to-spec → to-tickets → worktree 逐票 TDD 与独立双轴评审,仅推进确定独立的工作。
+`--night` 触发的无人值守实施路径(unattended/implementation)。仅对已确认范围内可修复的阻断最多自动修订一次并限定复审;仅重大待决、需变更已定决策、无可执行修复或一轮后仍有约束则交付夜间收工。随后内联 to-spec → to-tickets → 并行实施(就绪集调度),仅推进确定独立的工作。
 
-0.21.0按delivery_schema=1交付:审核共识/修订/附录只写原仓.xcheck,source=inline、original_source仅追溯;spec/票生成前建仓库外worktree,文档/必要.gitignore/代码全部同一夜链分支提交。原分支不commit/push/pull/rebase,不自动stash或复制未提交业务变更。发布只推冻结目标夜链分支,PR显式repo/base/head且自包含,不为PR推base,绝不force/自动合并。无remote可本地执行,无Git/HEAD只审核并记不能实施原因。
-_Avoid_: 全自动模式(与「自动链」混淆)、worktree等于安全沙箱、全绿等于已发布
+0.22交付:审核共识/修订/附录只写原仓.xcheck;夜链**接管检出**起分支,spec/票/.gitignore/代码全部同一夜链分支提交。原分支零 commit/push/pull/rebase,不自动stash或复制未提交业务变更(脏区底账+停靠票处理)。每票即推夜链分支(显式URL、不force、不交互、不跑hook);**不自动开PR**,晨报给脱敏compare一键链接。无remote可本地执行,无Git/HEAD只审核;`material=external` 失败关闭。
+_Avoid_: 全自动模式(与「自动链」混淆)、接管等于安全沙箱、全绿等于已发布
 
-**交付协议与冻结基线(delivery_schema = 1)**:
-与review_schema独立的完整night交付版本。首次摄入冻结host_repo、完整start_oid、source_branch、remote_name、唯一push remote_url、pr_base,复审继承不重算。原始对象仅由original_source追溯,不能成为写回目标。旧元数据缺失不能用当前HEAD补猜启动时点;含凭据URL不写账本、禁止自动发布。
+**接管检出(checkout takeover)**:
+0.22 夜链交付方式:夜链直接在当前检出 `git switch -c` 起分支干活;操作者未提交改动原样跟随(不stash/复制/提交,夜链只提交自己的票路径)。想要 worktree/容器隔离由操作者自己创建并在其中运行 xcheck(隔离是操作者的选择,ADR 0005)。
+_Avoid_: 接管等于隔离、worktree仪式(0.21及更早)
+
+**就绪集与泳道(ready set / lane)**:
+并行实施的调度单位。就绪集=自身无活动约束 ∧ 依赖票全complete ∧ 涉及路径与占径票(在跑/paused未清理/committed-unreviewed/rework)及脏区不相交的票;任一票落地事件触发重算并补位。泳道=一张票的一个执行agent位;泳道agent只改文件严禁git add/commit,提交权只在主会话(编辑并行、提交串行);落者记paused不拖队。
+_Avoid_: 波次整批推进、泳道自行提交
+
+**交付基线冻结(0.22)**:
+NIGHT记start_oid/branch/remote_url(脱敏)/pr_base/web_base,接管时冻结、复审继承;每次start刷新脏区底账与内容快照。含凭据URL剥userinfo后才可入账。
 _Avoid_: review_schema=2已经保证交付兼容、执行时当前HEAD就是启动基线
 
-**同分支交付与可核实恢复**:
-`night-git.sh prepare/verify/publish`分别准备仓库外worktree、核验身份/分支/提交可达、只发布冻结夜链分支。spec/票之前落NIGHT的branch/worktree意图;已有产物恢复先verify并核实所有complete完整OID和测试/独立评审证据。worktree/分支/提交丢失本批暂停,不自动重建再跳票。Git可达不代表测试通过,PR不创建也不抹掉本地实施成果。
+**可核实恢复**:
+恢复从票账本重算就绪集;complete须提交可达+scoped验证/评审证据;账本无complete提交但路径有残留的票先按失败票路径还原(reset→checkout BASE→clean -fd)再调度。分支丢失或提交不可达暂停,不从spec重建再跳票。Git可达不代表测试通过。
 _Avoid_: 短SHA或“绿”即可证明完成、丢失时从spec重建继续旧账本
 
 **NIGHT.md**:
-夜链下游账本,四阶段 review / plan / impl / finish,review夜链写review_schema=2、delivery_schema=1及继承的冻结元数据、branch/worktree。票级台账区分 complete(完整可达OID及测试/独立评审证据)、paused(直接约束及解除条件)、blocked(依赖未完成)。只有依赖已验证 complete 才放行。有paused/blocked或全局待决时写 waiting(解除条件与证据基线),impl/finish保持未勾;晨报可先交付,链仍等待解除。续跑先核新证据/决策并更新D/F再重算,没有新证据就返回暂停摘要,不重复实施、发布或通知。全部票处理完成才勾finish;全局受约束时plan也未勾,不拆可执行票、不建实施分支、不推送。
+夜链下游账本,四阶段 review / plan / impl / finish,review夜链写review_schema=2与0.22字段集(见flow「账本字段字典」)。票级台账区分 complete(完整可达OID/rounds/scoped验证/评审证据)、paused(原因及解除条件)、blocked(依赖未完成)、rework(轮次)、committed-unreviewed。只有依赖已验证 complete 才放行。有paused/blocked或全局待决时写 waiting(解除条件与证据基线),impl/finish保持未勾;晨报可先交付,链仍等待解除。续跑先核新证据/决策并更新D/F再重算,没有新证据就返回暂停摘要,不重复实施、发布或通知。全部票处理完成才勾finish;全局受约束时plan也未勾,不拆可执行票、不建实施分支、不推送。
 _Avoid_: 夜链 PROGRESS、台账有行即完成
 
 **夜间收工(night-shipped)**:
@@ -201,4 +209,4 @@ _Avoid_: 提示词等于权限、cwd/worktree等于隔离
 ### 后续目标(尚未实施)
 
 **可分发配置 / 强制材料隔离**:
-分别为第四、五批目标:分发模板与个人配置分离、统一解析;逐CLI验证真正只读/材料访问边界。当前未实现,不得用这些目标描述现有安装或安全保障。第三批同分支交付已纳入delivery_schema=1,但worktree不是权限隔离。
+分别为第四、五批目标:分发模板与个人配置分离、统一解析;逐CLI验证真正只读/材料访问边界。当前未实现,不得用这些目标描述现有安装或安全保障。0.22 的接管检出只约束提交位置,不是权限隔离;敌意环境配置明确出范围(ADR 0004,触发条件=夜链自动实施不可信外部材料前必须先上沙箱)。

@@ -9,7 +9,7 @@
 - `mode = review` 且 `review_schema = 2`:按本文新版协议解释。沿 `next`/`prev` 找最新环;旧迁移来源通过 `migrated_from` 关联。已交接环(gate 已勾且 next 有值)不是需要重跑的环。
 - review 无 `review_schema`:旧协议,不得把旧“必改/收敛”重解释为新版阻断结论。已结束的旧记录只读保留。
 - 未完旧 review:skill 保留原目录,幂等建立 `migrated_from=<旧ts>` 的新 schema2 首环,从可取得的对象/背景重新审核,不继承旧验证或通过。已有迁移目标则沿目标续跑,不反复建环;源内容缺失则停止。
-- **完整night缺 `delivery_schema = 1` 或冻结元数据:停止自动恢复,包括已有review_schema=2的记录。** 有plan/impl产物时报告账本/分支位置,等待专门恢复;没有plan产物也不能用当前HEAD猜旧基线,需明确新开。不得重放旧原分支推送、重复实施或清理旧分支。
+- **旧协议链(无review_schema、或NIGHT为0.21及更早字段集)一律拒绝续跑+提示新开(0.22)**:只读保留,不迁移不重放;无PROGRESS极旧目录仍静默忽略。
 - 未知 schema 或新版必要材料缺失:报告状态不一致,不得凭勾选跳阶段。
 - `mode = diag`:仍是诊断综合与旧三分类,不写 review_schema,不走新版 D/F 与验证链。
 - 无 `PROGRESS.md` 的极旧目录:静默忽略,不算未完成。
@@ -59,23 +59,15 @@ mode = review
 review_schema = 2
 interaction = unattended
 target = implementation
+material = trusted
 selected = codex, pi
 source = inline
 original_source = C:/…/xxx.md
-delivery_schema = 1
-host_repo = C:/…/host-repo
-start_oid = <完整提交OID>
-source_branch = <启动分支或->
-remote_name = <origin或->
-remote_url = <冻结唯一push URL或->
-pr_base = <冻结启动分支或->
 round = 0
 prev = -
 next = -
-migrated_from = -
 auto_revisions_used = 0
 smoke_cfg = <sha256>
-night = on
 
 ## 阶段(完成即打勾)
 - [x] intake
@@ -87,8 +79,8 @@ night = on
 (空 | 收敛(N 轮修订) | 推倒重来 | 无需修订 | 用户不修 | 夜间收工 | 用户中止 | 完成(diag))
 ```
 
-- `source`:正常审核/auto-review为对象绝对路径或inline,复审指新稿;完整night始终inline,`original_source`仅追溯原始文件/inline,不得作为写回目标。`prev`/`next`关联复审环;迁移新首环round=0、prev=-、migrated_from=旧ts。
-- `delivery_schema=1`及host_repo/start_oid/source_branch/remote_name/remote_url/pr_base仅完整night review使用,在首次摄入冻结并逐环继承。start_oid须完整OID;无Git/HEAD记`-`及implementation_unavailable原因,可审核但不实施。不从当前HEAD补猜缺失基线。远端必须明确且唯一push URL,缺失/不确定记`-`只本地执行;含凭据URL不落账本并禁止自动发布。业务未提交变更不自动stash、commit或复制到worktree,方案依赖它们时暂停相关路径。
+- `source`:正常审核/auto-review为对象绝对路径或inline,复审指新稿;完整night始终inline,`original_source`仅追溯原始文件/inline,不得作为写回目标。`prev`/`next`关联复审环。
+- `material = trusted|external`(0.22):来源为外部的材料(贴文/URL/跨仓,无论键入粘贴)记external,第11步失败关闭门使用。字段唯一定义处=flow.md「账本字段字典」;业务未提交变更不自动stash、commit或复制,夜链脏区底账与停靠规则处理。
 - `smoke_cfg`:最近实际冒烟通过时 agents.toml 的 sha256;跳冒烟须同时满足最近真实成功、配置指纹一致、上轮该家完整成功,不从连续跳过记录推导成功。
 - `auto_revisions_used`:原生首环0,自动修订递增并跨环保留。迁移旧round≥1至少记1,无法核实为unknown并禁自动再修;新首环round=0不重置已用预算。
 - `interaction`/`target`:所有新mode都必须同时保存。合法组合仅 `interactive/review`(正常审核)、`unattended/review`(--auto-review)、`unattended/implementation`(--night)。复审/迁移继承原模式。
@@ -179,30 +171,31 @@ review结论性终态(收敛/无需修订/用户不修/夜间收工/推倒重来
 
 ## NIGHT.md 与下游产物
 
-仅 `interaction=unattended / target=implementation`可建立NIGHT;target=review到审核交付即止,即使终态叫“夜间收工”也不能建此账本或发送夜链通知。review新夜链记review_schema=2、delivery_schema=1及interaction/target,从PROGRESS继承冻结host_repo/start_oid/source_branch/remote_name/remote_url/pr_base;生成spec前先记branch/worktree意图。另有review_ts、评审终态、object/spec/tickets/impl路径、push/pr结果。object仅指最新已核验环的proposal快照,与同环D/F绑定,不扫描最大rev或取变化的source。四阶段 `review → plan → impl → finish` 不变;diag只写短稿、不建worktree,不要求review/delivery元数据。
+仅 `interaction=unattended / target=implementation`可建立NIGHT;target=review到审核交付即止,即使终态叫"夜间收工"也不能建此账本或发送夜链通知。review新夜链记review_schema=2、interaction/target;0.22字段集:start_oid/branch/remote_url(脱敏)/pr_base/web_base在接管时冻结,另有review_ts、评审终态、object/spec/tickets路径、push结果、dirty_snapshot、waiting。object仅指最新已核验环的proposal快照,与同环D/F绑定,不扫描最大rev或取变化的source。四阶段 `review → plan → impl → finish` 不变;diag只写短稿、不实施,不要求review元数据。字段唯一定义处=flow.md「账本字段字典」。
 
-spec/票路径以NIGHT所记worktree为根,不以当前cwd或host_repo为根。branch为 `xcheck-night-<root-ts>`,worktree为原仓外绝对路径。完整OID及验证记录必须按实际提交逐个写入,以下占位符不是真实通过证据:
+spec/票路径以NIGHT所记夜链分支检出为根(接管检出,0.22)。branch为 `xcheck-night-<root-ts>`。完整OID及验证记录必须按实际提交逐个写入,以下占位符不是真实通过证据:
 
 ```text
-票 01: complete(commits <完整OID1>, <完整OID2>; tests <命令/结果/证据位置>; review <独立评审证据>)
+票 01: complete(oid=<完整OID>, rounds=<泳道LLM轮数>, tests=<scoped验证证据>, review=<评审证据>)
 票 02: paused(F2,解除条件:补齐删除范围验证)
 票 03: blocked(票02)
+票 04: rework(R1,修复中) → complete(...)
 ```
 
-- 票文件记 `decision_refs: D编号`、`review_blocks: F编号或无` 及依赖。自身有约束→paused,依赖未完成→blocked,无法证明独立也暂停。
-- 只调度自身无活动约束且依赖全部已验证 complete 的票。complete 须当前分支可达提交和验证记录;台账有行、停靠、尝试过不算完成。paused/blocked 须解除证据/新决策才重算。
-- worktree/分支丢失或提交不可达:停止实施恢复,不得从spec重建后按旧完成行跳票。plan未勾先看现有spec/票,不盲目覆盖用户改动。
+- 票文件记 `decision_refs: D编号`、`review_blocks: F编号或无`、依赖、**涉及路径**、副作用声明。自身有约束→paused,依赖未完成→blocked,无法证明独立也暂停;与脏区/占径票路径相交→停靠。
+- 只调度自身无活动约束且依赖全部已验证 complete 且路径不相交的票。complete 须当前分支可达提交和scoped验证记录;台账有行、停靠、尝试过不算完成。paused/blocked 须解除证据/新决策才重算。rework 追加提交不 revert,≤2轮后 paused;committed-unreviewed 留待恢复续评。
+- 分支丢失或提交不可达:停止实施恢复,不得从spec重建后按旧完成行跳票;账本无complete提交但路径有残留的票先按失败票路径还原(reset→checkout BASE→clean -fd)。plan未勾先看现有spec/票,不盲目覆盖用户改动。
 - 夜链结论:全绿仅全部票验证完成且无活动约束/终局阻断;带停靠完成仅全部票complete且仅有非阻断参考;paused/blocked/活动约束残留→未完成;spec/拆票失败→失败收工。有paused/blocked或全局待决时impl/finish保持未勾,写 `waiting = <F/票编号、解除条件及证据基线>`。晨报可以先交付;只有全部票处理完成才勾finish。全局受约束时plan也未勾,只交付原因,不拆可执行票、不建实施分支、不推送。
-- waiting恢复先核新证据/决策,更新D/F后重算票状态;无新证据则返回现有暂停摘要,不重复实施、发布或通知。
-- MORNING.md 是四问人话交付,附裁定与暂停/依赖状态、解除条件、分支/PR及验证结果。推倒重来/用户中止/diag不接下游,写未执行实施短稿。
+- waiting恢复先核新证据/决策,更新D/F后重算就绪集;无新证据则返回现有暂停摘要,不重复实施、发布或通知。
+- MORNING.md 是四问人话交付,附裁定与暂停/依赖状态、解除条件、分支与compare链接及验证结果、"你在夜链分支,git switch <pr_base> 返回"、hooks已跳过声明、票路径独占清单。推倒重来/用户中止/diag不接下游,写未执行实施短稿。
 
-**0.21.0隔离交付**:spec在 `<worktree>/docs/superpowers/specs/`,票在 `<worktree>/.scratch/<slug>/issues/`,必要最小.gitignore调整及所有代码也仅该worktree,全部同夜链分支提交。原分支不commit/push/pull/rebase,原仓只写.xcheck审核账本,不自动复制或处理业务未提交改动。规格整合已审proposal、D约束与精选附录形成自包含需求,不上传整个.xcheck、原始反馈或私有聊天。
+**0.22精简交付**:spec在 `<repo>/docs/superpowers/specs/`,票在 `<repo>/.scratch/<slug>/issues/`,必要最小.gitignore调整及所有代码也在同一夜链分支提交(接管检出,ADR 0005;`git commit --only`+`--no-verify`,编辑并行提交串行)。原分支不commit/push/pull/rebase,原仓只写.xcheck审核账本,不自动复制或处理业务未提交改动(脏区底账+停靠票)。规格整合已审proposal、D约束与精选附录形成自包含需求,不上传整个.xcheck、原始反馈或私有聊天。
 
-`night-git.sh prepare <host_repo> <branch> <worktree> <start_oid>`仅创建新分支/工作树或幂等核验匹配项,不覆盖冲突;已有产物恢复只用`verify`并传全部complete完整OID,核验common-dir、真实路径、HEAD分支和提交可达。主会话还须核验测试/独立评审证据,Git可达不代表测试通过。worktree/分支/提交缺失本批暂停,不自动重建;有未记账提交或未提交修改先核归属,不擅自清理/标完成。
+`night-git.sh start <repo> <branch> <start_oid>`接管检出:分支不存在则自冻结基线建并切换(HEAD已移动则拒绝);存在则幂等核对或切回;操作者改动阻挡切换时输出 blocked 由链记 waiting。`night-git.sh snapshot <repo> <refname>` 对tracked脏内容做 stash create 并 update-ref 防 gc(untracked 不含,已记限制)。每次 start 都刷新底账并重算停靠票。
 
-`publish`先核验身份与冻结remote URL,只推 `refs/heads/<branch>:refs/heads/<branch>`。无remote记无远端/本地完成;网络或权限拒推保留本地成果,收工再试一次;URL或身份不一致暂停发布,不猜新目标。PR只有夜链分支已推且冻结目标明确才创建:GitHub由 `night-pr.sh github <host/owner/repo> <base> <branch> <title> <UTF-8正文文件>` 显式查询并创建,只复用同目标开放同仓PR,查询失败不尝试创建。Gitea不由该helper托管,主会话仅在明确核实tea目标参数时操作,否则记未建。缺工具/未登录/目标不明/base不在远端记未建,不为PR推base。PR正文自包含规格主题、范围、测试证据摘要、paused/blocked及解除条件和发布状态,晨报路径仅补充,中文用UTF-8文件。部分完成不可推荐直接合并。
+`night-git.sh publish <repo> <branch> <remote_url>` 显式 URL 直推单一夜链 ref(`--no-verify`+非交互 env+绝不 force);每票提交后即推防全损,失败降级记账不挂链、下票连着重推,收工兜底末推。**不自动开PR(ADR 0006)**:晨报给脱敏归一的 compare 一键链接(web_base 解决 SSH/Web 端口不同);含 userinfo 的 URL 剥凭据后才可入账。`material=external` 时第11步失败关闭(ADR 0004)。
 
-实施结论与push/pr字段分开:push=已推(夜链分支)/未推(原因)/无远端,pr=URL/未建(原因)。不能见finish或全绿就声称已发布。
+实施结论与push字段分开:push=已推(夜链分支)/未推(原因)/无远端。不能见finish或全绿就声称已发布。
 
 night-intake.md留对象/背景/推断限制,不是用户同意凭据。当前CLI材料范围靠提示词限制,不构成强制权限隔离;第四、五批目标见[计划](superpowers/plans/2026-09-19-xcheck-review-convergence-and-portability.md)。
 

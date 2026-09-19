@@ -23,9 +23,9 @@ xcheck 是一组全局 [Claude Code](https://code.claude.com/) skill,把本机�
 
 ### 0.21.0 的分期范围
 
-[批准计划](docs/superpowers/plans/2026-09-19-xcheck-review-convergence-and-portability.md)第一、二批已实现保真共识、`review_schema = 2` 决策/问题账本、限定复审、局部暂停及 `--auto-review`。**本版新增第三批隔离交付协议 `delivery_schema = 1`**:完整night在摄入时冻结Git基线与发布目标,审核材料只写 `.xcheck/`,生成spec/票前建立仓库外worktree,规格、票、必要忽略规则和代码全部在同一夜链分支提交;原分支不提交、不推送、不pull/rebase。恢复核验完整提交OID与验证证据,缺失时安全暂停,不自动重建。
+[批准计划](docs/superpowers/plans/2026-09-19-xcheck-review-convergence-and-portability.md)第一、二批已实现保真共识、`review_schema = 2` 决策/问题账本、限定复审、局部暂停及 `--auto-review`。**0.22 精简重构**:三批功能经盲评修订定型——账本塌缩(字段字典单源)、**接管检出**替代 worktree(隔离是操作者的选择,ADR 0005)、**不自动开PR**(交付止于已推分支+晨报一键compare链接,ADR 0006)、**事件驱动并行实施**(就绪集调度,编辑并行提交串行,ADR 0007)、信任模型三档定界(ADR 0004,`material=external` 失败关闭)。旧协议链一律拒绝续跑+提示新开。
 
-第四、五批**尚未实现**:分发模板与个人配置分离、经逐CLI验证的真正权限隔离。完整[设计蓝图](docs/superpowers/specs/2026-09-19-xcheck-review-convergence-and-portability-design.md)不是已完成功能表。当前 CLI 仍靠提示词要求只读指定材料,**不是强制访问隔离,也不是全库取证**;worktree隔离交付写入位置,不隔离文件读取、网络或插件。diag任何入口都不实施;完整night只允许NIGHT短稿及可选通知,不建worktree,auto-review诊断不建NIGHT、不通知。
+配置分离与真正权限隔离**尚未实现**。完整[设计蓝图](docs/superpowers/specs/2026-09-19-xcheck-review-convergence-and-portability-design.md)与[0.22精简重构设计](docs/superpowers/specs/2026-09-19-xcheck-0.22-lean-pipeline-redesign.md)不是已完成功能表。当前 CLI 仍靠提示词要求只读指定材料,**不是强制访问隔离,也不是全库取证**;接管检出只约束提交位置,不隔离文件读取、网络或插件(敌意环境配置出范围,触发条件见 ADR 0004)。diag任何入口都不实施;auto-review诊断不建NIGHT、不通知。
 
 ## 快速开始
 
@@ -113,18 +113,18 @@ mkdir -p ~/.claude/skills && cp -r xcheck xcheck-setup ~/.claude/skills/
 
 ### 夜链:--night,睡前一把梭
 
-新链无模式旗标时只问一次,提供三选:**完整夜链(默认推荐)**、**仅无人值守审核**、**正常交互审核**。前者含实施和发布,后两者到审核交付结束。`--night` 直接选完整夜链,`--auto-review` 直接选仅无人值守审核,两旗标互斥。
+**入口为旗标直选(0.22)**:无旗标 = 正常交互审核;`--auto-review` = 仅无人值守审核;`--night` = 完整夜链(含实施与推送)。两旗标互斥,不再弹三选一入口问。
 
 `--auto-review` 不等用户,仅在已确认范围内有可执行阻断修复时最多自动修订并限定复审一次;预算用尽或遇决策边界可记兼容终态“夜间收工”,但**不建 NIGHT、不进第11步、不拆实施票、不推送/开PR/通知**。仍可写本地快照、共识稿、新修订稿和文件评审附录,不是零文件写入模式。
 
 白天聊完方案,睡前敲 `/xcheck --night 评审 <方案>` 就去睡:
 
 - 评审段不等你:仅在首轮有已确认范围内可修复的阻断时自动修订并限定复审一次。仅重大待决、需要变更用户决定、无可执行修复或复审后仍有约束,记 `夜间收工`;**这不解除约束、不代表全面放行**。
-- 下游仍内联执行 `to-spec` → `to-tickets` → worktree逐票TDD与独立双轴评审,但只把已确认共识、必要修复和验收目标写进规格。**精选一般建议未经明确采纳不扩成故事/票**。问题映射到票及真实依赖:直接约束票 `paused`,依赖未完成票 `blocked`,确定独立的票才推进;未知依赖不假定独立。
+- 下游仍内联执行 `to-spec` → `to-tickets` → 并行实施(就绪集调度、泳道编辑+主会话按票提交),但只把已确认共识、必要修复和验收目标写进规格。**精选一般建议未经明确采纳不扩成故事/票**。问题映射到票及真实依赖:直接约束票 `paused`,依赖未完成票 `blocked`,确定独立的票才推进;未知依赖不假定独立。
 - 完成票记 `complete`(提交和验证证据)后尝试推远端。暂停/受阻不算完成,修复上限耗尽、无下游依赖或先停靠也不能把真实阻断变完成;有残留约束或未完成票不报全绿。
-- **隔离交付边界**:摄入冻结原仓、完整启动OID、启动分支、唯一远端push URL及PR base,复审继承不重算。在第一份spec之前建立仓库外worktree;spec/票/必要.gitignore与代码全部只在该夜链分支提交,不改原分支业务文件,不在原分支commit/push/pull/rebase。未提交业务改动不自动stash、复制或纳入实施基线,依赖它们的路径暂停。文档和票完成后只尝试推夜链分支,绝不自动合并或force push。无remote可本地执行;无Git/HEAD则只审核并说明不能实施。
+- **交付边界(0.22)**:夜链接管当前检出起分支干活(`night-git.sh start`);NIGHT冻结start_oid/branch/remote_url(脱敏)/pr_base/web_base;每次start刷新脏区底账+内容快照,与操作者未提交改动路径重叠的票停靠。spec/票/必要.gitignore与代码全部在夜链分支提交(`git commit --only --no-verify`),不在原分支commit/push/pull/rebase。每票提交后即推夜链分支(显式URL、不force、不交互、不跑hook);**收工不自动开PR**,晨报给脱敏compare一键链接。`material=external`时实施失败关闭;无remote可本地执行;无Git/HEAD则只审核。
 - 早上先看晨报 `.xcheck/<ts>/MORNING.md`:评了什么/改了什么/执行了什么/要决定什么,列已完成、暂停及受依赖阻塞范围和解除条件。对话收尾是“夜链结论 → 简报 → 推荐下一步”。配置了Pushover则尝试三节点通知。PR显式指定冻结仓库/base/head,查询同目标开放PR复用;正文自包含规格、测试证据与未完成范围,不只放本机晨报路径。base不在远端则不建PR,不为此推base。**实施结果与push/PR结果分别记账,全绿不代表已发布**,合并仍由你决定。
-- 夜里中断:兼容的新链可 `/xcheck --night` 核验账本后续跑;`complete` 需完整OID可达、测试及独立评审证据,worktree/分支/提交缺失本批暂停,不自动重建。`paused/blocked` 或全局待决写入 `NIGHT.md waiting`,impl/finish保持未勾,晨报先交付暂停原因。续跑先核新证据/决策并更新问题记录再重算,没有新证据就返回暂停摘要,不重复实施、发布或通知。全局受约束时不拆可执行票、不建实施分支、不推送。**旧night缺delivery_schema冻结元数据即停止自动恢复,包括已有review_schema=2的记录**;不从当前HEAD补猜旧基线,没有plan产物也需明确新开。
+- 夜里中断:兼容的新链可 `/xcheck --night` 从票账本重算就绪集续跑;`complete` 需完整OID可达、scoped验证及评审证据;账本无complete提交但路径有残留的票先按失败票路径还原(reset→checkout→clean -fd)再调度。`paused/blocked` 或全局待决写入 `NIGHT.md waiting`,impl/finish保持未勾,晨报先交付暂停原因。续跑先核新证据/决策并更新问题记录再重算,没有新证据就返回暂停摘要,不重复实施、发布或通知。全局受约束时不拆可执行票、不建实施分支、不推送。**旧协议链(无review_schema或0.21字段集)一律拒绝续跑,提示新开**。
 - **前提**:夜间会话要用免弹窗权限模式跑(bypassPermissions 或预放行常用命令),否则子代理一条权限弹窗能挂整夜。
 
 ### 中断了怎么办
@@ -133,7 +133,7 @@ mkdir -p ~/.claude/skills && cp -r xcheck xcheck-setup ~/.claude/skills/
 
 新版先核验所需快照、D/F账本及复审基线,从第一个未勾阶段重做。缺失材料/未知schema明确停止,不凭会话记忆或勾选假装完成。
 
-无 `review_schema` 的旧review不原地混写:保留旧目录,关联新 `review_schema = 2` 环重新审核,不继承旧通过。已结束旧产物仍按旧规则阅读。完整night还须核验 `delivery_schema = 1` 与冻结元数据,旧记录即使已有review_schema=2也不能自动补基线或重放原分支动作;新版worktree/分支丢失或完成提交不可达也会停,不会从spec重建后跳过旧完成票。
+旧协议链(无 `review_schema` 的review、0.21及更早字段集的night)一律拒绝自动续跑,提示新开;旧目录只读保留,已结束旧产物仍按旧规则阅读。新版夜链分支丢失或完成提交不可达会停,不会从spec重建后跳过旧完成票。
 
 ## 两个命令
 
@@ -141,7 +141,7 @@ mkdir -p ~/.claude/skills && cp -r xcheck xcheck-setup ~/.claude/skills/
 
 | 命令 | 作用 |
 |---|---|
-| `/xcheck [--auto-review \| --night] [--agents a,b,c] [<文字>]` | 摄入 → 盲评 → 取证 → 裁定交付。裸敲先找兼容未完链,否则解析对象;新链入口三选,完整night默认推荐。--auto-review仅无人值守审核,--night才含spec/票、逐票实施与发布。模式旗标互斥,续跑不得变更原链交互方式或终点;diag始终不实施。 |
+| `/xcheck [--auto-review \| --night] [--agents a,b,c] [<文字>]` | 摄入 → 盲评 → 取证 → 裁定交付。裸敲先找兼容未完链,否则解析对象;入口旗标直选(无旗标=交互审核)。--auto-review仅无人值守审核,--night才含spec/票、并行实施与推送(不自动开PR)。模式旗标互斥,续跑不得变更原链交互方式或终点;diag始终不实施。 |
 | `/xcheck-setup` | 检测 / 验证 / 登记 agent。子命令见下。 |
 
 `/xcheck` 的输入形态:
@@ -166,7 +166,7 @@ mkdir -p ~/.claude/skills && cp -r xcheck xcheck-setup ~/.claude/skills/
 
 ## 产物落在哪
 
-审核留底在项目根 `.xcheck/`(本仓库已gitignore,宿主项目需自行确认)。正常审核/auto-review的正式共识稿、文件修订稿和附录可在原文件位置;完整night审核材料只在 `.xcheck/`,其spec/票/代码则在仓库外worktree的同一夜链分支:
+审核留底在项目根 `.xcheck/`(本仓库已gitignore,宿主项目需自行确认)。正常审核/auto-review的正式共识稿、文件修订稿和附录可在原文件位置;完整night审核材料只在 `.xcheck/`,其spec/票/代码则在当前检出的同一夜链分支(接管检出):
 
 ```
 .xcheck/
@@ -184,7 +184,7 @@ mkdir -p ~/.claude/skills && cp -r xcheck xcheck-setup ~/.claude/skills/
 │   ├── <agent>.failed.md          #   失败记录(有才建)
 │   ├── exp/                       #   ②类实验的临时文件,留底不删
 │   ├── review-appendix.md          #   完整night评审附录,不追加被评原文件
-│   ├── NIGHT.md                   #   (夜链)冻结基线/发布目标、worktree、四阶段、完整OID与验证证据、push/pr结果
+│   ├── NIGHT.md                   #   (夜链)0.22字段集(基线/分支/远端/compare基准)、四阶段、票台账、push结果
 │   ├── night-intake.md            #   (夜链)第 0 步解析留档(夜里不弹窗的过目替代)
 │   ├── MORNING.md                 #   (夜链)晨报:四问总交付 + 文末裁定与停靠附录(收尾才有)
 │   └── SUMMARY.md                 #   review:裁定投影+三类索引;diag:诊断长文+旧三分类
@@ -216,7 +216,7 @@ mkdir -p ~/.claude/skills && cp -r xcheck xcheck-setup ~/.claude/skills/
 - **非交互 `claude -p`** 无授权时读不了工作目录外的路径 —— xcheck 的内容文件全在 `<cwd>/.xcheck/` 下,不受影响;手工测试把文件放别处才会踩到。
 - **大文档**没有命令行长度问题:指令层与内容层分离,全文由 agent 自己读文件,绕开 Windows 32767 字符上限。
 - **修订预算**:正常模式两轮后仍有活动约束时由用户选择再修/交付/放弃;无人值守审核与night都最多自动修订一次,无可执行修复不空转。预算耗尽不解除阻断。旧链迁移也保留已用自动修订次数,无法核实则禁止自动再修,不会因新环轮次归零获得额外预算。
-- **材料范围不是权限隔离**:当前提示词限制读取列出的材料,CLI实际权限仍依赖现有配置(包括codex的danger-full-access);worktree也不隔离文件读取、网络或插件。第五批能力闸门尚未实施。
+- **材料范围不是权限隔离**:当前提示词限制读取列出的材料,CLI实际权限仍依赖现有配置(包括codex的danger-full-access);接管检出也不隔离文件读取、网络或插件;`material=external`+自动实施按 ADR 0004 失败关闭。沙箱能力尚未实施。
 - **夜链只保进度不合并**:`--night` 每票自动推远端、收工自动开 PR,但绝不自动合并、绝不 force push——合并是早上的手工决定;评审判"推倒重来"、链被中止或 diag 模式不接下游(不写代码,也不推送)。
 - 在 **Windows + Git Bash** 上开发与实测;其它 bash 环境理论可用,未系统验证。
 
@@ -232,9 +232,9 @@ xcheck/
 │   ├── review-contract.md          # schema2 D/F、裁定、复审、下游与迁移契约
 │   ├── subagent-carrier.md         # 搬运工指令(只搬运不评判)
 │   ├── extractor-carrier.md        # 摘录员指令(按来源摘原话)
-│   ├── night-delivery.md           # delivery_schema1冻结、隔离写入、恢复和发布契约
-│   ├── night-git.sh                # prepare/verify/publish:仓库外worktree与冻结夜链分支
-│   ├── night-pr.sh                 # GitHub PR显式目标查询/创建,中文正文走UTF-8文件
+│   ├── night-delivery.md           # 0.22精简交付协议:接管/提交纪律/发布(不自动开PR)
+│   ├── night-git.sh                # start/snapshot/publish:接管检出、脏内容快照、显式URL推送
+│   ├── run-mode.sh                 # 纯模式解析(request+两持久字段)
 │   ├── run-mode.sh                 # 纯模式解析/旧字段映射/续跑一致性校验
 │   ├── run-agent.sh                # agent 执行 supervisor(超时/挂起/击杀/取证)
 │   └── detect.sh                   # PATH 探测
