@@ -3,6 +3,71 @@
 All notable changes to `xcheck`. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 本文件记录 xcheck 的所有显著变更。
 
+## [0.21.0-rc.1] - 2026-09-19
+
+**Pre-release / 预发布**:首个包含下列0.19–0.21三批改动的发布标签;下面的0.19.0/0.20.0条目是开发阶段记录,不是另行发布的正式版本。五套本地检查共258项通过;真实多CLI端到端、真实托管PR/通知与完整回放产物比对尚未完成。配置分离与CLI强制权限隔离仍未实现。
+
+First prerelease containing the three development batches below. The 0.19.0/0.20.0 entries are development milestones, not separate stable releases. All 258 local checks pass; live multi-CLI workflows, hosted PR/notification integration and complete replay-artifact comparison remain unverified. Configuration separation and enforced CLI access isolation are not included.
+
+### Changed / 改进
+
+- **Isolated night delivery, batch 3.** The previous night workflow committed specs/tickets and pushed the host branch, while later recovery could confuse current HEAD with the original baseline. New `delivery_schema = 1`, independent of review_schema=2, freezes host_repo, full start_oid, source_branch, remote_name, unique push remote_url and pr_base at intake; revisions inherit them. Night consensus, revisions and appendices stay under `.xcheck/`, with source=inline and original_source for provenance only. An external worktree is prepared before the first spec; specs, tickets, minimal ignore changes and code commit only on that night branch. The original branch is never committed, pushed, pulled or rebased; uncommitted business changes are not stashed, copied or silently included.
+- **隔离夜链交付,第三批。** 旧夜链在原分支提交spec/票并收工直推,恢复又可能把当前HEAD误当启动基线。新增独立于review_schema=2的 `delivery_schema = 1`,摄入冻结host_repo、完整start_oid、source_branch、remote_name、唯一push remote_url与pr_base,复审继承。night共识/修订/附录只写.xcheck,source=inline、original_source仅追溯;第一份spec前建立仓库外worktree,规格、票、最小忽略规则与代码仅同一夜链分支提交。原分支不commit/push/pull/rebase,业务未提交改动不自动stash、复制或纳入基线。
+
+### Added / 新增
+
+- **Versioned delivery contract and mechanical Git helper.** `lib/night-delivery.md` defines boundaries; `lib/night-git.sh` prepares, verifies and publishes the night worktree/branch. Resume checks repository/worktree identity, branch and reachability of every completed full OID, plus separately recorded test and independent-review evidence. Missing worktrees/branches/commits pause this batch; they are not rebuilt from a spec while skipping old completed tickets. Legacy night metadata without delivery_schema is not auto-resumed, even with review_schema=2, and current HEAD cannot be guessed into a missing baseline.
+- **交付契约与机械Git helper。** `lib/night-delivery.md`集中边界,`lib/night-git.sh`提供prepare/verify/publish。恢复核验仓库/worktree身份、分支及每个complete完整OID可达,另核测试和独立评审证据;worktree/分支/提交丢失本批暂停,不从spec重建后跳旧票。旧night缺delivery_schema时停止自动恢复,包括review_schema=2记录;不从当前HEAD补猜缺失基线。
+- **Publication is separate from implementation.** Only the frozen night branch is pushed; PR lookup/create uses explicit frozen repo/base/head and a self-contained body covering scope, evidence and unfinished work. Missing remote permits local work; missing tools, login or remote base leaves PR uncreated without pushing the base. No force or automatic merge. Ordinary review/auto-review file behavior remains; diag short reports never create worktrees.
+- **发布与实施分别记账。** 只推冻结夜链分支,PR显式repo/base/head查询复用或创建,正文自包含范围、证据与未完成工作。无remote可本地执行;缺工具、未登录或远端base不存在则不建PR,不为此推base。不force/自动合并;正常审核/auto-review文件行为保留,diag短稿不建worktree。
+
+### Scope / 本批边界
+
+- **Explicit GitHub PR helper / 显式GitHub PR助手:** `lib/night-pr.sh github <host/owner/repo> <base> <branch> <title> <UTF-8 body-file>` queries and reuses an open same-repository PR or creates one, with no create-on-query-failure fallback. Gitea is not managed by this helper; the controller may use tea only after verifying its explicit target, otherwise it records no PR. 显式查询同目标开放同仓PR后复用或创建,查询失败不转创建;Gitea仅在主会话可核实tea目标时操作,否则记未建,不宣称全面托管支持。
+
+- **Batches 4–5 remain unimplemented:** configuration separation and enforced per-CLI isolation. Batch 3 actual offline results: night-git 46 passed/0 failed; night-pr 73/0; review-contract rerun 73/0; run-mode rerun 33/0; supervisor rerun 33/0. All five suites total 258 passing checks across different scopes, not end-to-end proof; diff and bash syntax checks also passed. Temporary repositories/local bare remotes and stub gh calls are not live hosting, tea or multi-CLI end-to-end validation. Earlier replay-artifact permission limitations remain unchanged.
+- **第四、五批仍未实施:**配置分离与真正逐CLI权限隔离。第三批实际离线结果:night-git 46通过/0失败、night-pr 73/0、review-contract复跑73/0、run-mode复跑33/0、supervisor最终复跑33/0。五套共258通过、0失败,范围不同、不代表端到端;diff与bash语法检查通过。仅临时repo/本地bare remote及stub gh,未验收真实托管、tea或多CLI端到端。前批回放产物权限受限记录保留。
+- Design / 设计:[审核收敛与可分发配置](docs/superpowers/specs/2026-09-19-xcheck-review-convergence-and-portability-design.md). Plan / 分批计划:[实施计划](docs/superpowers/plans/2026-09-19-xcheck-review-convergence-and-portability.md).
+
+## [0.20.0] - 2026-09-19
+
+### Added / 新增
+
+- **Interaction and delivery target separated, batch 2 only.** Previously unattended review required selecting the full implementation night chain. `--auto-review` now selects `unattended/review`; `--night` remains `unattended/implementation`, and the two flags are mutually exclusive. A new run without either flag offers one three-way choice: full night (recommended), unattended review only, or interactive review. All new PROGRESS records, including diag, persist `interaction` and `target`. The real pure parser `lib/run-mode.sh` normalizes requests and persisted fields; it does not execute work or grant permissions.
+- **交互方式与执行终点解耦,仅第二批。** 旧入口把无人值守审核与完整实施夜链绑在一起。新增 `--auto-review`→`unattended/review`;`--night`保持`unattended/implementation`,两旗标互斥。无旗标新链一次三选:完整night(默认推荐)、仅无人值守审核、正常交互审核。所有新PROGRESS(含diag)保存interaction/target;新增真实纯解析helper `lib/run-mode.sh`,只规范化请求与持久化字段,不执行任务或授予权限。
+
+### Changed / 改进
+
+- **Resume cannot change the original mode.** Both new fields must be absent for legacy mapping (`night=on` → full night; absent night → interactive review). Partial, invalid or contradictory metadata fails closed; explicit mode requests must match the original run. Review targets never create NIGHT, enter step 11, notify, push or open PRs, but local review snapshots, consensus/revision files and appendices remain allowed. `夜间收工` remains a compatible unattended-policy stop label for both auto-review and night, not implementation permission. Diag never implements; full night retains its NIGHT short report and optional notification, while auto-review diag creates neither NIGHT nor notifications.
+- **续跑不能改变原模式。** 仅两新字段同时缺失才兼容映射旧night=on为完整night、无night为正常审核;半缺、非法或矛盾记录拒绝,显式模式与原链不符不能接管。review终点不建NIGHT、不进第11步、不通知/推送/PR,仍可写本地审核快照、共识/修订稿与附录。“夜间收工”兼容用于auto-review与night的策略停止,不授予实施权限;diag任何入口不实施,完整night保留NIGHT短稿/可选通知,auto-review diag不建NIGHT、不通知。
+
+### Scope / 本批边界
+
+- **Batches 3–5 remain unimplemented.** Spec/ticket documents still commit and push on the host branch under the existing night workflow; same-branch delivery, configuration separation and enforced per-CLI isolation are not delivered. Batch 2 tests are tracked separately and must not be inferred from batch 1's 73 offline checks and 33 supervisor assertions. Batch 1's replay-artifact permission limitation and unrun live multi-CLI validation remain recorded in the plan.
+- **第三至五批未做。** spec/票仍按现行夜链在主仓当前分支提交和推送;同分支交付、配置分离、真正逐CLI隔离尚未实现。第二批测试另行记录,不能把第一批73项离线检查、33项supervisor断言当本批通过证明;第一批回放产物权限受限及真实多CLI端到端未执行记录继续保留。
+- **Offline tests / 离线测试:** batch 2 run-mode 33 passed, 0 failed; review-contract rerun 73 passed, 0 failed; supervisor rerun 33 passed, 0 failed. 第二批模式测试33通过、0失败,既有契约检查复跑73通过、0失败,supervisor回归复跑33通过、0失败;diff检查通过。真实CLI/发布/通知仍未验收,不能以离线通过替代。
+- Design / 设计:[审核收敛与可分发配置](docs/superpowers/specs/2026-09-19-xcheck-review-convergence-and-portability-design.md). Plan / 分批计划:[实施计划](docs/superpowers/plans/2026-09-19-xcheck-review-convergence-and-portability.md).
+
+## [0.19.0] - 2026-09-19
+
+### Changed / 改进
+
+- **Review convergence, batch 1 only (tasks 1–4).** The previous “confirmed = must-fix” union and fresh full review on every revision let ordinary suggestions prolong review and silently expand implementation scope. New review runs use `review_schema = 2`, stable D decisions (`decisions.md`) and F findings (`FINDINGS.md`), with source mapping and cross-round history. Intake preserves explicit targets, binds short answers to their questions/options, records superseded decisions and missing context, and does not treat unconfirmed assistant proposals as agreement. Fact verification is separate from disposition: only open blockers or concrete major risks pending evidence/decision constrain the affected paths; ordinary suggestions may remain without requiring revision. SUMMARY and appendices project the recorded rulings. Re-review uses `re-review-context.md` and a dedicated template for original fixes, regressions and new major defects, not another open-ended search for minor improvements. Night performs at most one authorized, actionable automatic revision; stopping or handing off does not clear unresolved constraints.
+- **审核收敛,仅第一批(任务1–4)。** 根因是旧“属实即必改”并集与每轮完整重新评审,让普通建议持续触发修订并隐式扩张实施范围。新review写 `review_schema = 2`,新增稳定D决策快照 `decisions.md`、稳定F问题记录 `FINDINGS.md`,保留来源映射与跨轮历史。摄入保留显式对象、短答的问题/选项绑定、后续修正及上下文缺失,助手未确认提议不当共识。事实核实与处置裁定分离:只有开放阻断或有具体重大后果的待决风险约束相关路径,普通建议可留存而不触发修订。SUMMARY/附录从裁定记录投影。复审通过 `re-review-context.md` 与专用模板验证原约束修复、回归和新重大缺陷,不重新开放寻找一般建议。night最多一次已授权且有可执行修复的自动修订;交付或预算耗尽不解除约束。
+- **Scoped downstream handoff and versioned recovery.** Specs/tickets inherit confirmed decisions, necessary fixes and acceptance goals; selected optional suggestions do not become new stories or tickets without adoption. Tickets distinguish `complete` (reachable commits and verification evidence), `paused` (direct constraint and release condition), and `blocked` (unfinished dependencies). Unknown independence is not permission to proceed; unresolved constraints cannot be docked into completion or reported green. Finished legacy reviews retain legacy meanings; unfinished legacy reviews migrate idempotently to a linked new run without inheriting approval. Legacy NIGHT runs with planning artifacts or implementation started stop automatic recovery, rather than replaying implementation or old host-branch pushes. Missing required schema2 ledgers, unknown schemas, missing worktrees/branches or unreachable completed commits stop recovery. Diag keeps its original synthesis/triage behavior.
+- **限定下游交付与分版本恢复。** spec/票仅继承已确认决策、必要修复和验收目标,精选一般建议未被采纳不转新故事或票。票区分 `complete`(可达提交及验证证据)、`paused`(直接约束及解除条件)、`blocked`(依赖未完成)。未知独立性不能默认放行,未解除约束不能靠停靠变完成或报全绿。已结束旧review保留旧语义;未完旧review幂等迁移关联新环重新审核,不继承旧通过。已有plan产物或实施记录的旧NIGHT停止自动恢复,不重放实施或原分支推送。新版必需账本缺失、未知schema、worktree/分支丢失或完成提交不可达时停止恢复。diag保持原综合与三分类。
+
+- **Final review safeguards / 终审护栏:** downstream specs bind to the latest reviewed proposal snapshot and its D/F records, never the directory's highest revision or a changed source file; incomplete/invalid finding records cannot count as zero constraints. 下游只认最新已审快照及同环D/F,不取目录最高rev或被外改的source;问题字段缺失/枚举非法不能被过滤成零约束,历史已解除问题不能因旧事实属实自动重开。
+
+### Scope / 本批边界
+
+- **Waiting is resumable, not finished.** Paused/blocked tickets or global pending decisions write `NIGHT.waiting` with release conditions; impl/finish remain unchecked while a preliminary morning report may be delivered. Resume validates new evidence/decisions and updates D/F before rescheduling; without new evidence it returns the pause summary without repeating implementation, publication or notifications. Migration preserves `auto_revisions_used`; an unknown prior budget disables another automatic revision.
+- **暂停待解除不等于收尾完成。** paused/blocked或全局待决写入NIGHT的waiting及解除条件,impl/finish保持未勾,晨报可先交付。续跑先核新证据/决策并更新D/F再调度,没有新证据则返回暂停摘要,不重复实施、发布或通知。迁移保留auto_revisions_used;无法核实已用预算时禁止自动再修。
+
+- **Batches 2–5 remain unimplemented:** no new `--auto-review` command, no template/personal configuration split, no enforced per-CLI access isolation, and no same-night-branch delivery migration. Current CLI material scope is a prompt instruction, not a security sandbox. Current night still commits and pushes spec/ticket documents on the host branch under the 0.18.0 workflow; the original-branch-unchanged goal is not delivered here. Offline contract/fixture checks are not proof of live model behavior or real CLI end-to-end validation.
+- **第二至五批尚未实施:**没有新增 `--auto-review`,没有模板/个人配置分离,没有真正逐CLI权限隔离,也未完成夜链同分支交付迁移。当前CLI材料范围是提示词要求,不是安全沙箱;night仍按0.18.0流程在主仓当前分支提交并推送spec/票,本批未实现“原分支不变”。离线契约/样例检查不等于真实模型行为或真实CLI端到端验证。
+- Design / 设计:[审核收敛与可分发配置](docs/superpowers/specs/2026-09-19-xcheck-review-convergence-and-portability-design.md). Plan / 分批计划:[实施计划](docs/superpowers/plans/2026-09-19-xcheck-review-convergence-and-portability.md). README / AGENTS / CONTEXT / artifacts synchronized for batch 1 / 五处文档按第一批同步。
+
 ## [0.18.0] - 2026-09-19
 
 ### Changed / 改进

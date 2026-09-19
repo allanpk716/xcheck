@@ -1,0 +1,8 @@
+PROGRESS.md	@	review_schema	^2$
+PROGRESS.md	@	migrated_from	^20260918-220000$
+PROGRESS.md	@	round	^0$
+PROGRESS.md	@	prev	^-$
+PROGRESS.md	@	!	\[x\][[:space:]]+(smoke|verify|experiments|gate)
+PROGRESS.md	@	!	无需修订|收敛\(
+old/PROGRESS.md	@	!	review_schema|migrated_from
+old/PROGRESS.md	@	?	\[x\] verify

@@ -83,7 +83,7 @@ bash ~/.claude/skills/xcheck/lib/run-agent.sh <AGENT_NAME> <PROMPT_FILE>
 主会话会在 RESULT_SHAPE 里告诉你按哪种结构返回:
 
 - **diag 模式** → 根因 / 证据(代码·日志·推理)/ 置信度(高·中·低)/ 建议的验证或修复方向
-- **review 模式** → 裁决(AGREE | SUGGEST_CHANGES | DISAGREE)/ 逐条问题(带位置+严重度)/ 理由
+- **review 模式** → 裁决(AGREE | SUGGEST_CHANGES | DISAGREE)/ 逐条问题(位置、严重度/类型、发生条件、具体影响、证据或缺口、关联决策、建议解除条件)/ 理由;复审另带原问题复核(F编号、结论、证据或缺口)。全部忠实搬运,缺字段写 `(未提及)`,不由搬运工补判断。
 
 **摘录原则**:该 agent 说了什么,你就忠实地按上面的字段把它说的搬过来。**严禁**:
 - 加你自己的判断 / 推理 / 修正;

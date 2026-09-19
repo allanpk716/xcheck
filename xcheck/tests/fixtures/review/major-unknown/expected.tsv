@@ -1,0 +1,7 @@
+FINDINGS.md	F1	取证分类	^③$
+FINDINGS.md	F1	事实	^未确定$
+FINDINGS.md	F1	裁定	^重大风险待决$
+FINDINGS.md	F1	生命周期	^开放$
+FINDINGS.md	F1	解除条件	保留|排除|实现|证据
+PROGRESS.md	@	?	夜间收工
+PROGRESS.md	@	!	无需修订|收敛\(

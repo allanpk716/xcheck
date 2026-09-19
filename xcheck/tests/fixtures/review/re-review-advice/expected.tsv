@@ -1,0 +1,6 @@
+FINDINGS.md	F1	生命周期	^已解除$
+FINDINGS.md	F1	证据	125|分整数
+FINDINGS.md	F2	裁定	^非阻断建议$
+PROGRESS.md	@	round	^1$
+PROGRESS.md	@	?	收敛\(1[[:space:]]*轮修订\)
+PROGRESS.md	@	!	夜间收工

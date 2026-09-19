@@ -3,7 +3,7 @@
 【各家评审】
 {{ALL_REVIEWS}}
 
-请只输出**紧凑头**(总共 ≤6 行;后续流程会把三分类与验证结果接在下面,长篇分析不要):
+请只输出**紧凑头**(总共 ≤6 行;后续由主会话按 lib/review-contract.md 将分类、验证和裁定记入FINDINGS.md,再投影SUMMARY;此步不判阻断、不输出长篇分析):
 
 1. **各家裁决一览** —— 一行:每家 AGREE / SUGGEST_CHANGES / DISAGREE(如 `codex=SUGGEST_CHANGES · kimi=AGREE`);有未返回/失败的家也在此行注明。
 2. **总判** —— 一句,**三定式选一**:
