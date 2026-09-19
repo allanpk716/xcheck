@@ -15,9 +15,9 @@ bad() { FAIL=$((FAIL+1)); printf '  FAIL: %s\n' "$*"; }
 [[ -f "$SCRIPT" ]] || { printf 'Missing production helper: %s\n' "$SCRIPT" >&2; exit 2; }
 
 # 预期是固定模式矩阵,不是测试内重写解析器。
-INTERACTIVE=$'interaction = interactive\ntarget = review\nnight_mode = 0'
-AUTO_REVIEW=$'interaction = unattended\ntarget = review\nnight_mode = 0'
-NIGHT=$'interaction = unattended\ntarget = implementation\nnight_mode = 1'
+INTERACTIVE=$'interaction = interactive\ntarget = review'
+AUTO_REVIEW=$'interaction = unattended\ntarget = review'
+NIGHT=$'interaction = unattended\ntarget = implementation'
 accepts() {
   local label="$1" expected="$2" status actual
   shift 2
@@ -50,7 +50,7 @@ snapshot() (
     else printf 'other: %s\n' "$path"; fi
   done
 )
-printf 'review_schema = 999\ninteraction = unattended\ntarget = implementation\nnight = on\n' > "$SANDBOX/.xcheck/existing/PROGRESS.md"
+printf 'review_schema = 999\ninteraction = unattended\ntarget = implementation\n' > "$SANDBOX/.xcheck/existing/PROGRESS.md"
 printf 'review_schema = 999\n- [ ] finish\n' > "$SANDBOX/.xcheck/existing/NIGHT.md"
 printf 'Original proposal; do not edit.\n' > "$SANDBOX/proposal.md"
 snapshot > "$TMP/before"
@@ -61,38 +61,33 @@ accepts 'interactive new run is review only' "$INTERACTIVE" interactive
 accepts 'auto-review is unattended review, not night implementation' "$AUTO_REVIEW" auto-review
 accepts 'night is unattended implementation' "$NIGHT" night
 
-printf '== Persisted authorization and legacy metadata ==\n'
-accepts 'unflagged resume preserves interactive review' "$INTERACTIVE" default interactive review -
-accepts 'unflagged resume preserves unattended review' "$AUTO_REVIEW" default unattended review -
-accepts 'explicit auto-review matches unattended review' "$AUTO_REVIEW" auto-review unattended review -
-accepts 'explicit night matches legacy night metadata' "$NIGHT" night - - on
-accepts 'unflagged resume preserves implementation without legacy alias' "$NIGHT" default unattended implementation -
-accepts 'explicit night matches persisted authorization and legacy alias' "$NIGHT" night unattended implementation on
-accepts 'legacy absent pair and night map to interactive review' "$INTERACTIVE" default - - -
-accepts 'legacy absent pair with night on maps to implementation' "$NIGHT" default - - on
+printf '== Persisted authorization ==\n'
+accepts 'unflagged resume preserves interactive review' "$INTERACTIVE" default interactive review
+accepts 'unflagged resume preserves unattended review' "$AUTO_REVIEW" default unattended review
+accepts 'unflagged resume preserves implementation' "$NIGHT" default unattended implementation
+accepts 'explicit auto-review matches unattended review' "$AUTO_REVIEW" auto-review unattended review
+accepts 'explicit night matches persisted authorization' "$NIGHT" night unattended implementation
 
 printf '== Reject mismatched authorization in both directions ==\n'
-rejects 'night cannot upgrade interactive review' night interactive review -
-rejects 'night cannot upgrade unattended review' night unattended review -
-rejects 'auto-review cannot relabel interactive review' auto-review interactive review -
-rejects 'auto-review cannot downgrade implementation' auto-review unattended implementation on
-rejects 'interactive cannot relabel unattended review' interactive unattended review -
-rejects 'interactive cannot downgrade implementation' interactive unattended implementation -
+rejects 'night cannot upgrade interactive review' night interactive review
+rejects 'night cannot upgrade unattended review' night unattended review
+rejects 'auto-review cannot relabel interactive review' auto-review interactive review
+rejects 'auto-review cannot downgrade implementation' auto-review unattended implementation
+rejects 'interactive cannot relabel unattended review' interactive unattended review
+rejects 'interactive cannot downgrade implementation' interactive unattended implementation
 
 printf '== Reject malformed metadata and requests ==\n'
-rejects 'partial pair missing interaction is not legacy' default - review -
-rejects 'partial pair missing target is not repaired by night on' default unattended - on
-rejects 'interactive implementation is not a valid pair' default interactive implementation -
-rejects 'unknown interaction is rejected' default automatic review -
-rejects 'unknown target is rejected' default unattended deploy -
-rejects 'legacy night on cannot coexist with review target' default unattended review on
-rejects 'invalid legacy night value is rejected' default unattended review off
+rejects 'partial pair missing interaction is rejected' default - review
+rejects 'partial pair missing target is rejected' default unattended -
+rejects 'interactive implementation is not a valid pair' default interactive implementation
+rejects 'unknown interaction is rejected' default automatic review
+rejects 'unknown target is rejected' default unattended deploy
+rejects 'legacy third field is outside the helper API' default unattended review on
 rejects 'conflicting request is not accepted as a combined mode' 'auto-review night'
-rejects 'extra schema argument is outside the helper API' default unattended review - 999
 
 printf '== Scope and no workspace writes ==\n'
 # cwd中故意留未知schema。helper只解析传入字段,不能代替壳/flow的版本守卫。
-accepts 'schema remains caller responsibility; helper does not scan cwd metadata' "$AUTO_REVIEW" default unattended review -
+accepts 'schema remains caller responsibility; helper does not scan cwd metadata' "$AUTO_REVIEW" default unattended review
 snapshot > "$TMP/after"
 if cmp -s "$TMP/before" "$TMP/after"; then
   ok 'success and rejection leave sandbox paths and file contents unchanged'

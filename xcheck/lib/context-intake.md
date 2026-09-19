@@ -45,28 +45,16 @@
 - **完整night(`INTERACTION=unattended / TARGET=implementation`)**:审核阶段共识稿、快照、修订稿与评审附录**只写 `.xcheck/<ts>/`**。讨论/贴文直接写自包含 `proposal.md`,不另在原工作区 `docs/` 创建consensus;文件输入仍用 `cp` 固定为proposal,不改变用户指定的审核对象。所有此类输入一律 `source = inline`,另记 `original_source = <原文件绝对路径或->`;讨论确有对应原文件才记其路径,没有则写`-`。original_source**只作来源追溯**,不作为复审读取基线、附录写入或发布目标;第3步不得把它或 `$ARGUMENTS` 重新赋给source。原稿正文与文末均不写,终态附录留本轮 `.xcheck/`。
 - **正常review与--auto-review(`TARGET=review`)**:保持原行为。讨论型另将固化稿落 `docs/superpowers/specs/<YYYYMMDD>-<主题>-consensus.md`,再固定为proposal;这是自动整理,不是额外确认关卡。路径已有不同内容时不覆盖,选未占用后缀。文件型source为指定文件绝对路径;讨论型source为共识稿绝对路径;贴文source=inline。修订与文件型终态附录仍按flow原规则处理。
 
-写PROGRESS头部 `mode=review / review_schema=2 / interaction / target / source / round=0 / prev=-`;完整night还须按下节冻结交付基线,然后勾 `intake`。第3步复用已落内容,不得重新复制变化后的源文件覆盖本轮快照。复审已有D记录及交付基线由flow继承,不得在这里重新编号或重新探测后覆盖。
+写PROGRESS头部 `mode=review / review_schema=2 / interaction / target / material / source / round=0 / prev=-`,然后勾 `intake`。第3步复用已落内容,不得重新复制变化后的源文件覆盖本轮快照。复审已有D记录由flow继承,不得在这里重新编号或重新探测后覆盖。
 
-### 完整night首次摄入:冻结交付基线
+### material 判定(0.22)
 
-**仅MODE=review且TARGET=implementation的全新首环(不是恢复/迁移旧链)**,在首次摄入写PROGRESS时冻结以下字段;不等评审结束、spec生成或第11步才取HEAD。`MIGRATED_FROM`存在且旧链没有冻结交付基线时不得执行此冻结,只能迁移审核并暂停实施;用户明确独立新开完整night才可取新基线。这些探测均只读,不fetch、不修改git配置、不切分支、不建worktree、不提交或推送。此时只是记录后续实施/发布的边界,不是开始实施。
+- `material = trusted`:对象为本仓文件、用户就地键入的即兴内容。
+- `material = external`:对象**来源为外部**——贴文、URL抓取、跨仓文件;**无论用户键入还是粘贴,只要内容来源是外部一律 external**。
+- 此标记供 flow 第 11 步失败关闭门使用(external + 自动实施 → 不实施,ADR 0004 触发条件);摄入时不做其他动作,交付基线(start_oid/branch/remote_url/pr_base)在第 11 步接管时才冻结到 NIGHT。
 
-| PROGRESS字段 | 首次摄入取值 |
-|---|---|
-| `delivery_schema` | `1`,与review_schema分别校验 |
-| `host_repo` | 启动位置运行 `git rev-parse --show-toplevel` 得到的宿主仓库绝对root,规范为正斜杠;不以子目录cwd冒充root。非工作树/仓库不可取得则`-` |
-| `start_oid` | 在host_repo用 `git rev-parse --verify 'HEAD^{commit}'` 得到完整commit SHA,不缩写、不从远端替代;HEAD不存在/不可验证则`-` |
-| `source_branch` | `git symbolic-ref --quiet --short HEAD` 的实际分支名;detached HEAD或不可取得则`-`,不能猜main/master |
-| `remote_name` | 用户本次运行前已明确选用的现有远端;没有明确选用时,仅远端列表**唯一且为origin**才默认origin。无远端、多个远端或仅非origin而未选用时`-` |
-| `remote_url` | 选中remote的 `git remote get-url --push --all <remote_name>` **实际push URL**;必须成功且恰好单个非空URL,不能用fetch URL冒充。无选中远端或多个push URL/查询失败则`-`。另只读核验 `git remote get-url --all <remote_name>` 也恰好一个fetch URL且与该push URL完全一致;不一致/不唯一/查询失败时保留已取得的单push URL事实,但写publication_blocked禁止发布 |
-| `pr_base` | 用户明确指定的有效分支名,否则冻结source_branch;发布目标不能确定时`-`。detached HEAD不得猜base,无明确base则只本地交付 |
-| `implementation_blocked` | 无阻碍写`-`;缺仓库/缺可验证HEAD等写具体不可实施原因,允许继续完成审核但第11步不能造基线实施 |
-| `publication_blocked` | 无阻碍写`-`;远端未明确选用、push URL非唯一/不可取得、fetch URL非唯一/不可取得或与push URL不同、PR base不可确定等写具体原因,后续只本地交付不发布 |
-
-- 先读盘上已有头部再写:新首环已冻结的字段不能因摄入重试、当前HEAD/分支/远端配置变化而重取。字段重复、部分写入或相互矛盾先报告不一致,不能静默补成看似完整的启动基线。`-`是明确记录的不可用值,不是缺字段;必须与对应阻碍原因一致。
-- 未选择远端时remote_name/remote_url/pr_base均为`-`;已选中但URL或base不足,或fetch与push URL不一致时保留已取得的事实并写publication_blocked,不得发布。**publication_blocked非`-`时先按只本地交付跳过发布,不将部分可用字段传给publish helper试跑**,不把预期跳过报成实施/发布执行失败;晨报写明未发布原因。只本地交付不等于审核失败,也不要求用户配置远端。不执行`git remote add/set-url`或修改push配置来消除歧义。
-- 宿主仓库有未提交/未跟踪内容时不清理、不暂存、不提交、不stash。start_oid只指向已提交基线,不声称会把这些变更带入实施。冻结失败只限制下游,可继续写proposal/decisions并完成审核;绝不编造SHA/分支或新建仓库来绕过。
-- 复审只继承根环冻结字段及original_source,由flow核验;不能把复审时的HEAD当新的start_oid。现有旧night没有冻结字段时按壳的delivery版本守卫处理,不能借重进摄入补造旧启动基线。普通review、--auto-review与diag不新增这些交付字段。
+- 宿主仓库有未提交/未跟踪内容时**不清理、不暂存、不提交、不stash**;它们在夜链接管后原样保留,由 flow 第 11 步的脏区底账与停靠规则处理。
+- 摄入不取 HEAD/远端信息、不修改 git 配置;只落 material 标记。无 git / 无 HEAD 的仓库照样完成审核,能否实施由第 11 步环境门判定。
 
 诊断型落 `input.md` = 用户原始输入实质首段(若有)+确认后的事实清单,不建context;`mode=diag / interaction / target / source=inline / round=0 / prev=-`,不写review_schema,勾intake后继续。
 
@@ -106,18 +94,13 @@ DIALOG_FILE = <cwd>/.xcheck/<ts>/dialog-snippet.txt
 自包含输入不重新选对象,但不等于不带背景。
 
 1. 静默扫可见最近对话(极长默认最近~20轮),只取与指定输入直接相关的必要背景。背景摘录保留用户原话、不改写;没摘到就不建context。
-2. 摘到了 → 对话明说一句“已附带N条相关背景原话,出处留在本轮材料中”;没有则不额外弹窗。
+2. 摘到了 → 对话明说一句"已附带 N 条来自刚才对话的背景(**未经逐条确认,若有出入请打断**),出处留在本轮材料中";没有则不额外弹窗。
 3. **review** → 按第0.0步的“review落盘”完整建立proposal/context/decisions与schema2头部。用户指定的文件内容须读取以形成D快照,不能只cp后跳过决策提取。重要决策存在实质歧义时才用上面的review确认纪律;明确对象不因背景缺失被替换。
 4. **diag** → 保持原有路径:本步只摘背景,由flow第3步落input/context;无背景时删掉prompt中的上下文块。不建立decisions或review_schema。
 
-### 旧review迁移(MIGRATED_FROM 存在时)
+### 旧链(0.22:不迁移)
 
-壳先执行schema/旧night守卫,只把可迁移旧review交给本步。读取旧PROGRESS、可取得的 `proposal.md`(优先固定快照,缺失才用旧source且说明基线变化)及必要context,作为**历史输入**重建schema2审核;不把旧SUMMARY的“通过/必改/证实”当新版结论,不从旧助手总结倒造用户确认。
-
-- 新目录记录 `migrated_from = <旧ts>`, `round=0 / prev=- / source=inline`。新环继承规范化interaction/target,不能因迁移升级终点。旧source只作为来源信息,不能成为新附录写入目标;原目录及旧source不改写。完整night记录 `original_source = <旧original_source或旧文件型source或->`,仅追溯;没有plan/impl旧产物而获准重新审核,不等于获得新的交付基线。旧链缺delivery_schema/冻结元数据时不执行上节冻结,不得取当前HEAD补造;新审核运行只继续审核并暂停实施,不承接旧发布动作。只有用户明确独立新开完整night才按全新运行冻结。
-- 把对象复制到**新目录**proposal,建立decisions,随后勾intake。即使 `$ARGUMENTS` 指向旧快照,flow第3步也必须复用新proposal和 `source=inline`,不能重新按该路径设source。
-- 自动修订已耗预算按审核契约/flow的迁移规则保留;材料不足不能假定为零。旧验证与阶段勾选不继承。
-- 找不到可信对象 → 停止说明,不拿无关近期文件代替。当前对话提供的新增决定须明确记录,不得伪称属于旧讨论。
+旧协议链(无review_schema、或夜链为0.21及更早字段集)在壳的版本守卫即被**拒绝续跑**,不会进入本步。用户想继续旧对象的,按全新链重新摄入(`material` 按新对象判定);旧目录只读保留,不复制其结论、不继承其勾选与预算,历史"通过/必改/证实"只作背景参考。
 
 ---
 

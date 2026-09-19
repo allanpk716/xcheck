@@ -30,19 +30,19 @@ contains '事实/严重度不自动决定阻断' xcheck/lib/review-contract.md '
 contains '重大未知仍须裁定' xcheck/lib/review-contract.md '不能因为①②为空跳过③'
 contains '非阻断不扩票' xcheck/lib/review-contract.md '非阻断建议.*不得新增故事/票'
 contains '短答绑定问题选项' xcheck/lib/review-contract.md '用户短答.*问题/选项绑定'
-contains '旧review重新审核不继承通过' xcheck/lib/review-contract.md '不继承旧通过/验证结论'
-contains '迁移幂等' xcheck/lib/review-contract.md 'migrated_from.*存在则续新环'
-contains '旧night实施安全暂停' xcheck/lib/review-contract.md '旧NIGHT.*不自动迁移执行'
+contains '旧协议链一律拒绝' xcheck/lib/review-contract.md '旧协议链已不支持自动续跑'
+contains '迁移矩阵已删除' xcheck/lib/review-contract.md '迁移矩阵与migrated_from已删除'
+contains '旧夜链字段集拒绝' xcheck/lib/review-contract.md '或夜链NIGHT为0.21及更早字段集'
 contains '完成依赖必须已验证' xcheck/lib/review-contract.md '所有依赖票已验证complete'
 contains '完成提交不可达拒绝恢复' xcheck/lib/review-contract.md '提交不可达.*停止'
 contains '活动约束计算前拒绝缺失状态' xcheck/lib/review-contract.md '缺生命周期/裁定不能被过滤成'
 contains '下游绑定最新已审快照' xcheck/lib/flow.md 'object只能是该环.*proposal\.md'
 contains '下游不扫描旧rev或活动source' xcheck/lib/flow.md '不扫描最大rev、不回退到活动source'
 contains '归并不自动重开已解除项' xcheck/prompts/triage-review.md '不自动重设开放'
-contains '迁移不重置自动预算' xcheck/lib/review-contract.md 'auto_revisions_used.*unknown'
+contains '拒绝不含迁移' xcheck/lib/review-contract.md '不迁移、不重放、不继承旧通过/预算结论'
 contains 'flow接入集中契约' xcheck/lib/flow.md 'review-contract\.md'
 contains '入口有schema分流' xcheck/SKILL.md 'review_schema'
-contains '入口有迁移定位' xcheck/SKILL.md 'migrated_from'
+contains '入口拒绝旧协议链' xcheck/SKILL.md '旧协议链已不支持自动续跑'
 contains '摄入落决策快照' xcheck/lib/context-intake.md 'decisions\.md'
 contains 'flow引用review专用分类' xcheck/lib/flow.md 'triage-review\.md'
 contains 'flow引用限定复审模板' xcheck/lib/flow.md 're-review\.md'
@@ -194,6 +194,28 @@ for case_name in "${CASES[@]}"; do
 if [[ -z "$REPLAY" ]]; then
   printf 'NOT RUN: semantic replay (supply independently produced artifacts via --replay-dir).\n'
 fi
+printf '== 字段字典同步锁(0.22;flow字典为唯一定义处) ==
+'
+for f in xcheck/lib/flow.md xcheck/lib/night-delivery.md xcheck/lib/review-contract.md xcheck/SKILL.md xcheck/lib/context-intake.md; do
+  for banned in 'delivery_schema' 'implementation_blocked' 'publication_blocked' 'host_repo' 'worktree = ' 'night_mode' 'NIGHT_MODE'; do
+    if grep -q -- "$banned" "$ROOT/$f" 2>/dev/null; then
+      bad "$f 不应再含已废弃标识 $banned"
+    else
+      ok "$f 无已废弃标识 $banned"
+    fi
+  done
+done
+if grep -rq --exclude='*.test.sh' -- '票 01: complete(commits' "$ROOT/xcheck" 2>/dev/null; then
+  bad '旧票台账格式(commits变体)残留'
+else
+  ok '票台账格式无旧变体'
+fi
+if grep -q -- 'material = trusted' "$ROOT/xcheck/lib/context-intake.md" && grep -q -- 'material = external' "$ROOT/xcheck/lib/flow.md"; then
+  ok 'material 字段在摄入与失败关闭门两处成对'
+else
+  bad 'material 字段配对缺失'
+fi
+
 printf 'Scope: static wiring, rendered prompt budget, oracle controls; no CLI, permissions, Git, notifications or publishing tested.\n'
 printf 'Result: %s pass, %s fail\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]

@@ -1,26 +1,21 @@
 #!/usr/bin/env bash
 # Resolve a requested mode against optional persisted metadata. No side effects.
-# run-mode.sh <default|interactive|auto-review|night> [<interaction|-> <target|-> <night|->]
+# run-mode.sh <default|interactive|auto-review|night> [<interaction|-> <target|->]
 set -uo pipefail
 fail() { printf 'run-mode: %s\n' "$*" >&2; exit 2; }
-[[ $# -eq 1 || $# -eq 4 ]] || fail 'expected request, or request and three persisted fields'
+[[ $# -eq 1 || $# -eq 3 ]] || fail 'expected request, or request and two persisted fields'
 request="$1"
 case "$request" in default|interactive|auto-review|night) ;; *) fail 'invalid or conflicting request';; esac
 interaction=interactive; target=review
-if [[ $# -eq 4 ]]; then
-  interaction="$2"; target="$3"; legacy="$4"
-  [[ "$legacy" == '-' || "$legacy" == on ]] || fail 'invalid legacy night field'
-  if [[ "$interaction" == '-' && "$target" == '-' ]]; then
-    if [[ "$legacy" == on ]]; then interaction=unattended; target=implementation
-    else interaction=interactive; target=review; fi
-  elif [[ "$interaction" == '-' || "$target" == '-' ]]; then
+if [[ $# -eq 3 ]]; then
+  interaction="$2"; target="$3"
+  if [[ "$interaction" == '-' || "$target" == '-' ]]; then
     fail 'partial persisted mode'
   fi
   case "$interaction/$target" in
     interactive/review|unattended/review|unattended/implementation) ;;
     *) fail 'invalid persisted mode pair';;
   esac
-  [[ "$legacy" != on || "$interaction/$target" == unattended/implementation ]] || fail 'legacy night conflicts with persisted mode'
   case "$request" in
     default) ;;
     interactive) [[ "$interaction/$target" == interactive/review ]] || fail 'request does not match persisted mode';;
@@ -35,4 +30,3 @@ else
   esac
 fi
 printf 'interaction = %s\ntarget = %s\n' "$interaction" "$target"
-if [[ "$target" == implementation ]]; then printf 'night_mode = 1\n'; else printf 'night_mode = 0\n'; fi
