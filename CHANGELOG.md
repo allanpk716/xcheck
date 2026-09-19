@@ -3,6 +3,26 @@
 All notable changes to `xcheck`. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 本文件记录 xcheck 的所有显著变更。
 
+## [0.22.0] - 2026-09-19
+
+**Pre-release / 预发布**:精简管道重构——在 rc.1 三批(0.19~0.21)基础上,经 grill-with-docs 设计访谈 + codex/pi 三轮盲评(16→15→11 收敛)定型。设计:[0.22 lean pipeline redesign](docs/superpowers/specs/2026-09-19-xcheck-0.22-lean-pipeline-redesign.md)(含 rev1/rev2 与终审附录);决策:[ADR 0004–0007](docs/adr/)。
+
+First prerelease of the lean pipeline redesign, consolidating the rc.1 batches under review-driven revision (three blind review rounds, findings 16→15→11, convergent).
+
+### Changed / 改进
+
+- **机械层收缩(批次A)**:`night-git.sh` 116→95 行三动词——start(接管检出/幂等/操作者改动阻挡→blocked)、snapshot(stash create+update-ref 防 gc 脏内容快照)、publish(显式URL直推+`--no-verify`+`GIT_TERMINAL_PROMPT=0`+`GCM_INTERACTIVE=never`+清空ASKPASS+ssh BatchMode+绝不force);**credential.helper 不再清空**(GCM 缓存凭据是 HTTPS 合法主路径——rc.1 的清空设计会让整晚推送全失败,盲评坐实)。`night-pr.sh` 及 73 条测试删除(ADR 0006)。测试 46→26 条只留不变式断言(含 hook 偷运被 `--no-verify` 阻断、非 ff 绝不 force 两条对抗测试)。
+- **账本塌缩与契约精简(批次B)**:PROGRESS 删 delivery_schema/七冻结字段/night=on/implementation_blocked 族,新增 `material = trusted|external`(来源外部无论键入粘贴一律 external,第11步失败关闭门);NIGHT 收为 0.22 字段集;**账本字段字典单源节**+36 项同步锁测试;NIGHT_MODE 派生层删除(闸门只看 INTERACTION/TARGET);入口改**旗标直选**(无旗标=交互审核,删三选一);**旧协议链一律拒绝续跑+提示新开**(迁移矩阵与 migrated_from 删除)。
+- **并行实施(批次D,ADR 0007)**:事件驱动就绪集(依赖全complete ∧ 路径与在跑/paused未清/committed-unreviewed/rework票及脏区不相交 ∧ 泳道有空位;任一票落地触发重算);**编辑并行提交串行**(泳道 agent 只改文件严禁 git add/commit,主会话按票 `git commit --only --no-verify`);失败票路径还原三步(reset→checkout BASE→clean -fd);rework 追加提交≤2轮;`night_parallel_lanes=2` 起步(429 实证);派单包内联涉及路径文件(目标单票 38→≤20 轮);终审最强档。
+- **五文档同步(批次C)**:AGENTS/README/CONTEXT/artifacts 全量对齐;CONTEXT 新术语:接管检出、就绪集与泳道、旗标直选;23 条评审回归全部修复(复审面板钉死、终审最强档、修订稿自代入纪律、第7步查证边界、铁律3"未决逐个问"、背景诚实语等)。
+
+### Scope / 本版边界
+
+- **live 验证未做**(rc→正式版门禁):真实仓库夜链端到端(接管/并行/每票即推/compare链接)未跑;验收四指标——单票平均轮数 ≤20(基线38)、并行度≥2时间占比>50%、意图票数均摊墙钟下降、P90:P50 不劣化;脚本口径沿用外部速度诊断文档。
+- 夜链建议 0 点后启动(22–24 点晚高峰实测 3–6 倍延迟);工具下限 bash≥4.4 / git≥2.36(README 记录)。
+- 配置分离与逐 CLI 权限隔离仍未实施;敌意环境配置(TM-3)明确出范围(ADR 0004,触发条件=夜链自动实施不可信外部材料前必须先上沙箱)。
+- 离线测试:review-contract 110(含同步锁)/ run-mode 28 / night-git 26 / night-parallel 26 / run-agent 33 = **223 项全绿**;不含模型语义与真实托管验证。
+
 ## [0.21.0-rc.1] - 2026-09-19
 
 **Pre-release / 预发布**:首个包含下列0.19–0.21三批改动的发布标签;下面的0.19.0/0.20.0条目是开发阶段记录,不是另行发布的正式版本。五套本地检查共258项通过;真实多CLI端到端、真实托管PR/通知与完整回放产物比对尚未完成。配置分离与CLI强制权限隔离仍未实现。

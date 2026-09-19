@@ -219,6 +219,8 @@ mkdir -p ~/.claude/skills && cp -r xcheck xcheck-setup ~/.claude/skills/
 - **材料范围不是权限隔离**:当前提示词限制读取列出的材料,CLI实际权限仍依赖现有配置(包括codex的danger-full-access);接管检出也不隔离文件读取、网络或插件;`material=external`+自动实施按 ADR 0004 失败关闭。沙箱能力尚未实施。
 - **夜链只保进度不合并**:`--night` 每票自动推远端、收工自动开 PR,但绝不自动合并、绝不 force push——合并是早上的手工决定;评审判"推倒重来"、链被中止或 diag 模式不接下游(不写代码,也不推送)。
 - 在 **Windows + Git Bash** 上开发与实测;其它 bash 环境理论可用,未系统验证。
+- 最低工具版本(0.22 实测口径):**bash ≥ 4.4**(`[[ -v ]]` 需 4.3、`mapfile -d` 需 4.4;macOS 自带 3.2 不达标)、**git ≥ 2.36**(worktree/porcelain -z 系特性;Git for Windows 现行版本远超)。低于下限时 helper 报错方向可能误导,先升工具。
+- 夜链建议 **0 点后启动**:22:00–24:00 为上游晚高峰(实测每轮延迟 3–6 倍),见速度诊断。
 
 ## 仓库结构
 
