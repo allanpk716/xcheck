@@ -20,9 +20,12 @@ timeout_sec = 2700
 # 默认 agent 集(可选)。设了 /xcheck 就跳过每次勾选直接用这组。
 # 出厂不设(注释掉);要用就取消注释、填名字。详见顶部说明。
 default_agents = ["codex", "pi"]
-# 夜链并行实施泳道数(0.22,ADR 0007)。从 2 起步:上游并发上限须实测,
-# 2026-09-19 十个并行子代理触发 429 集体阵亡是直接证据;跑干净一夜后手动升。
-night_parallel_lanes = 2
+# 夜链并发帽(0.23,ADR 0008):实施泳道+票级评审合计的同时在跑上限(冒烟/评审段
+# fan-out 不在此帽)。429 前科(2026-09-19 十并行子代理集体阵亡)未消化前建议 ≤4;
+# ferryman 干净一夜(2026-09-19 11 票全落地)后默认 2→3。直接设置:
+# /xcheck-setup lanes N 改本值,或单晚旗标 /xcheck --night --lanes N
+# (优先级 旗标 > 本值;N≥5 警告不拦)。
+night_parallel_lanes = 3
 
 [agents.claude]
 installed_check = "claude"

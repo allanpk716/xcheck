@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 0.22 并行实施调度契约的静态布线检查(读 Markdown 断言规则在盘;不含语义回放)。
+# 0.22 并行实施调度契约 + 0.23 并发帽(ADR 0008)的静态布线检查(读 Markdown 断言规则在盘;不含语义回放)。
 # bash xcheck/tests/night-parallel.test.sh
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -54,8 +54,27 @@ absent 'flow无旧PR助手引用' "$FLOW" 'night-pr'
 
 printf '== 配置与档位 ==\n'
 contains 'lanes配置存在' "$TOML" 'night_parallel_lanes'
-contains 'lanes默认2' "$FLOW" 'night_parallel_lanes = 2'
+contains 'lanes默认3(toml)' "$TOML" 'night_parallel_lanes = 3'
+contains 'flow默认3' "$FLOW" 'night_parallel_lanes.*默认 ?3|默认 3.*night_parallel_lanes'
 contains '终审最强档' "$FLOW" '终局全分支 review:派最强档|派最强档 reviewer'
+
+printf '== 并发帽(0.23,ADR 0008) ==\n'
+SKILL=xcheck/SKILL.md
+SETUP=xcheck-setup/SKILL.md
+ADR8=docs/adr/0008-concurrency-cap-covers-ticket-review.md
+contains '帽罩实施+票级评审' "$FLOW" '实施泳道.*票级评审|实施位.*评审位'
+contains 'fan-out不在帽内' "$FLOW" 'fan-out 不在此帽|fan-out.*不在'
+contains '评审优先补位' "$FLOW" '评审优先'
+contains '评审排队不新增状态' "$FLOW" '不新增台账状态'
+contains 'NIGHT记lanes' "$FLOW" 'lanes = <N>|lanes = N'
+contains '续跑改道追记' "$FLOW" '改道.*追记|原值→新值'
+contains '字段字典lanes行' "$FLOW" '\| lanes \| NIGHT \|'
+contains '旗标lanes解析' "$SKILL" '--lanes'
+contains 'lanes须配night' "$SKILL" '仅 .--night. 可携带|--lanes.*--night.*报错'
+contains '优先级旗标大于配置' "$SKILL" '--lanes > agents.toml \[defaults\].night_parallel_lanes|--lanes > night_parallel_lanes'
+contains 'setup模式E存在' "$SETUP" '模式 E:.`lanes|模式 E.*lanes'
+contains 'setup警告不拦' "$SETUP" '警告不拦'
+contains 'ADR0008在册' "$ADR8" '并发帽'
 
 printf 'Scope: 静态布线断言;无模型语义回放、无真实实施/推送。\n'
 printf 'Result: %d pass, %d fail\n' "$PASS" "$FAIL"

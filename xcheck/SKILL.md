@@ -2,23 +2,25 @@
 name: xcheck
 description: 一次触发全自动异构评审 —— 并行评审本地多个 AI agent、自动查证与实验,区分阻断与非阻断建议、限定范围复审,终点交付。手动调用 /xcheck。
 disable-model-invocation: true
-argument-hint: [--auto-review | --night] [--agents a,b,c] [<问题描述或方案>]
+argument-hint: [--auto-review | --night] [--agents a,b,c] [--lanes N] [<问题描述或方案>]
 ---
 
 # /xcheck — 单停点全自动链入口
 
-`$ARGUMENTS` 可空。你(壳)只做四件事:**抠旗标(--auto-review / --night / --agents)→ 查未完成链(含版本守卫)→ 路由 → 转派**。编排大脑是 `~/.claude/skills/xcheck/lib/flow.md` 的「第 0 步(摄入)+ 11 步」(第 11 步 = 完整夜链专属),你不重新实现它。review 遵守 `lib/review-contract.md` 的 `review_schema = 2`;diag保持原有诊断协议。`INTERACTION` 控制是否询问,`TARGET` 控制执行终点——**闸门只看这两个字段,不派生第三变量**。
+`$ARGUMENTS` 可空。你(壳)只做四件事:**抠旗标(--auto-review / --night / --agents / --lanes)→ 查未完成链(含版本守卫)→ 路由 → 转派**。编排大脑是 `~/.claude/skills/xcheck/lib/flow.md` 的「第 0 步(摄入)+ 11 步」(第 11 步 = 完整夜链专属),你不重新实现它。review 遵守 `lib/review-contract.md` 的 `review_schema = 2`;diag保持原有诊断协议。`INTERACTION` 控制是否询问,`TARGET` 控制执行终点——**闸门只看这两个字段,不派生第三变量**。
 
-## 1. 抠旗标(--auto-review / --night / --agents,可选)
+## 1. 抠旗标(--auto-review / --night / --agents / --lanes,可选)
 
 先检查独立布尔 token `--auto-review` 与 `--night`:**两者互斥,同时出现立即报错停止**。只含 `--auto-review` → `MODE_REQUEST = auto-review`;只含 `--night` → `MODE_REQUEST = night`;均无 → `MODE_REQUEST = default`。删除已识别模式旗标,不改变剩余输入。两者均可与 `--agents` 并用,顺序不限。
 
 - `--auto-review`:无人值守**仅审核**;摄入与停点不弹窗,最多按审核契约自动修订一次,交付后结束。保留受限查证/实验、审核快照/修订/附录,不创建NIGHT、不实施、不commit/push、不发夜链通知。
-- `--night`:无人值守完整实施;审核终态后按flow第11步固化spec、拆票、并行实施,每票即推夜链分支;**不自动开PR**,晨报给一键链接;原分支零commit/push/pull/rebase;`material=external` 时实施失败关闭。Pushover通知可选,未配置或失败不阻塞晨报交付。**夜链操作前提**:夜间会话要用免弹窗权限模式跑(bypassPermissions 或预放行常用命令),否则子代理一条 Bash 权限弹窗能挂整夜;本技能不修改权限设置。
+- `--night`:无人值守完整实施;审核终态后按flow第11步固化spec、拆票、并行实施(并发帽=`--lanes`/`night_parallel_lanes`,罩实施+票级评审合计,ADR 0008),每票即推夜链分支;**不自动开PR**,晨报给一键链接;原分支零commit/push/pull/rebase;`material=external` 时实施失败关闭。Pushover通知可选,未配置或失败不阻塞晨报交付。**夜链操作前提**:夜间会话要用免弹窗权限模式跑(bypassPermissions 或预放行常用命令),否则子代理一条 Bash 权限弹窗能挂整夜;本技能不修改权限设置。
 
 新链用 `bash ~/.claude/skills/xcheck/lib/run-mode.sh <MODE_REQUEST>` 解析,按键读取 stdout 的 `interaction` / `target` 赋给 `INTERACTION` / `TARGET`;不得source/eval脚本输出或账本内容。**入口为旗标直选(0.22)**:无旗标新链 = 正常交互审核(default),不再弹三选一入口问;想无人值守请敲 `--auto-review` 或 `--night`。恢复必须用三参数形式(request + 盘上两字段),不能拿单参数新链结果覆盖账本。
 
 若 `$ARGUMENTS` 含 `--agents`:其值 = 紧跟后**一个空白分隔 token**(纯逗号串,如 `codex,kimi`,不含空格)。缺值、值为空或下一个token以 `--` 开头 → **报缺参并停止**。把 `--agents <token>` 从 `$ARGUMENTS` 删掉,剩余文本 = 待分类内容。设 `OVERRIDE_AGENTS = <拆成的名字列表>`;空名字或名字不在 agents.toml 的 `[agents.<name>]` → **报错停住**,打印"名字 X 不在 agents.toml;可用 agent:<列出所有 [agents.*] key>"。参数校验使用原token顺序。
+
+若 `$ARGUMENTS` 含 `--lanes`:其值 = 紧跟后**一个空白分隔 token**(整数 ≥1)。缺值、非整数或 <1 → **报缺参并停止**。**仅 `--night` 可携带**(`--auto-review` 或无模式旗标时出现 → **报错停住**:评审段没有泳道,防止误以为评审也会加速)。把 `--lanes <token>` 从 `$ARGUMENTS` 删掉,剩余文本 = 待分类内容。设 `OVERRIDE_LANES = <N>`;生效优先级 `--lanes > agents.toml [defaults].night_parallel_lanes`(默认 3;并发帽罩实施泳道+票级评审合计,ADR 0008)。**续跑夜链允许改道**:只影响后续派发,NIGHT 追记一行(原值→新值)。
 
 ## 2. 查未完成链(弹窗 0)
 

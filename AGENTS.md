@@ -10,7 +10,7 @@ xcheck 是两枚全局 Claude Code skill:`/xcheck`(评审/诊断链)和 `/xcheck
 
 **分期边界**:0.19~0.21 三批(审核收敛/模式解耦/隔离交付)经 0.22 重构精简定型:账本塌缩、接管检出替代 worktree、不自动开 PR、事件驱动并行实施。配置分离与真正权限隔离仍未实施;现有材料范围靠提示词与 material 失败关闭门,不能称强制沙箱(触发条件见 ADR 0004)。
 
-夜链由 `--night` 触发,评审后内联to-spec/to-tickets再并行实施;仅推进无活动约束且依赖已验证完成的票。夜链在当前检出起分支干活(接管,ADR 0005——隔离是操作者的选择);审核共识/修订/附录只在原仓.xcheck;spec/票/最小.gitignore/代码全部同一夜链分支提交(`git commit --only`+`--no-verify`,编辑并行提交串行)。原分支零 commit/push/pull/rebase;每票即推夜链分支(显式URL、不force、不交互、不跑hook);**不自动开PR**(ADR 0006),晨报给脱敏compare一键链接。发布结果单列,绝不force/自动合并。
+夜链由 `--night` 触发,评审后内联to-spec/to-tickets再并行实施;仅推进无活动约束且依赖已验证完成的票。**并发帽 `--lanes > night_parallel_lanes`(默认3,ADR 0008)罩实施泳道+票级评审合计,空位评审优先**。夜链在当前检出起分支干活(接管,ADR 0005——隔离是操作者的选择);审核共识/修订/附录只在原仓.xcheck;spec/票/最小.gitignore/代码全部同一夜链分支提交(`git commit --only`+`--no-verify`,编辑并行提交串行)。原分支零 commit/push/pull/rebase;每票即推夜链分支(显式URL、不force、不交互、不跑hook);**不自动开PR**(ADR 0006),晨报给脱敏compare一键链接。发布结果单列,绝不force/自动合并。
 
 ## 一次 /xcheck 的完整生命周期(精确版)
 
@@ -61,7 +61,8 @@ flow.md(严格保持0~11编号)
     接管检出:NIGHT冻结start_oid/branch/remote_url(脱敏)/pr_base/web_base,认证预检
     每次start刷新脏区底账+内容快照(stash ref防gc),重算停靠票;start blocked→waiting
     就绪集=无约束∧依赖全complete∧路径与在跑/paused未清/committed-unreviewed/rework票不相交∧与脏区不相交
-    泳道agent只改文件严禁git add/commit;主会话按票commit --only --no-verify(防共享index捎带)
+    泳道=并发工作位(实施位/评审位,ADR 0008);实施agent只改文件严禁git add/commit;主会话按票commit --only --no-verify(防共享index捎带)
+    并发帽--lanes>night_parallel_lanes(默认3)罩实施+票级评审合计,空位评审优先;NIGHT impl开始记lanes,续跑改道追记
     派单包内联涉及路径文件(预算上限);模板前缀稳定保缓存;落者paused不拖队
     失败票路径还原三步:reset→checkout BASE→clean -fd;连带清越界残留
     complete记可达提交/rounds/scoped验证/评审证据;rework追加提交不revert,≤2轮后paused

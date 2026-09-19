@@ -205,15 +205,16 @@ RESULT_SHAPE = <diag:根因/证据/置信度/建议 | review:裁决/逐条问题
    - 自查粒度、验收和真实依赖;活动约束映射到行为/票及依赖方,无法证明独立不能填无。非阻断建议未获采纳不拆票。疑点自动记账但不自动改用户决定。
    - 票被gitignore时最小放行(先看文件后精确改),`git commit --only <票目录+该忽略规则> --no-verify`;记录提交OID后尝试 publish。
    完成:NIGHT 头部 `tickets` 字段填目录,勾 `plan`(注记"spec + N 票")。
-6. **并行实施(impl,事件驱动就绪集;编辑并行、提交串行)**:推通知("spec 固化 + 拆票完成:N 张票。开始并行实施(≤lanes 道),每完成一票推远端保存进度。")→:
-   - **就绪集判定**(任一票落地事件触发重算):票自身无活动约束 ∧ 依赖票全 complete ∧ **涉及路径与"在跑票 ∪ paused未清理票 ∪ committed-unreviewed票 ∪ rework票"的路径两两不相交** ∧ 与脏区底账(每次start刷新的 porcelain 全量,含 untracked)不相交——与脏区相交的票记 `paused(与操作者未提交改动重叠,防捎带/防冲突)`;泳道有空位(默认 `night_parallel_lanes = 2`,跑干净一夜后手动升)才派出。**路径比较先规范化**:统一正斜杠、去 `./`、目录包含语义=`dir/` 前缀,大小写按平台。
+6. **并行实施(impl,事件驱动就绪集;编辑并行、提交串行)**:推通知("spec 固化 + 拆票完成:N 张票。开始并行实施(并发帽 ≤N 道,实施+票级评审合计),每完成一票推远端保存进度。")→ **NIGHT 记 `lanes = <N>(来源:--lanes|默认)`**:
+   - **并发帽(ADR 0008)**:`LANES = --lanes 旗标 > [defaults].night_parallel_lanes(默认 3,/xcheck-setup lanes 设置)`,罩**实施泳道 + 票级评审**的同时在跑合计数(冒烟、评审段 fan-out 不在此帽);终局全分支 review 同占一位。续跑 `--lanes` 改道允许,只影响后续派发,NIGHT 追记一行(原值→新值)。
+   - **就绪集判定**(任一票落地事件触发重算):票自身无活动约束 ∧ 依赖票全 complete ∧ **涉及路径与"在跑票 ∪ paused未清理票 ∪ committed-unreviewed票 ∪ rework票"的路径两两不相交** ∧ 与脏区底账(每次start刷新的 porcelain 全量,含 untracked)不相交——与脏区相交的票记 `paused(与操作者未提交改动重叠,防捎带/防冲突)`;实施位有空位(在跑实施+评审合计 < LANES)才派出。**路径比较先规范化**:统一正斜杠、去 `./`、目录包含语义=`dir/` 前缀,大小写按平台。
    - **派单包**:票文件全文 + 该票涉及路径下的文件内容内联(预算上限,超限给关键文件全文+其余大纲)+ spec 路径 + 前票已定接口与裁定 + 验收标准;派发时对涉及路径做派发快照(hash 入账本,作文件级归因辅助)。派单模板前缀保持稳定(保前缀缓存)。
-   - **泳道纪律**:泳道 agent **只改文件、跑票内局部验证,严禁 `git add`/`git commit`/`git push`**(提交权只在主会话);要求 TDD(先写失败测试跑红→最小实现跑绿);模型档位:单文件机械票便宜档,跨文件/含设计判断票中档,每波最难/最前置票给最强档;回报四态(DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / Blocked)。落者超时/失败记 paused **不拖队**,其余泳道照常。
+   - **泳道纪律**:泳道=夜链并发工作位,分**实施位**与**评审位**(ADR 0008 泛化;两者合计不超 LANES)。实施位 agent **只改文件、跑票内局部验证,严禁 `git add`/`git commit`/`git push`**(提交权只在主会话);要求 TDD(先写失败测试跑红→最小实现跑绿);模型档位:单文件机械票便宜档,跨文件/含设计判断票中档,每波最难/最前置票给最强档;回报四态(DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / Blocked)。落者超时/失败记 paused **不拖队**,其余泳道照常。
    - **票落地(主会话,串行)**:验收 → 提交前校验:`git status --porcelain` 中该票产生(相对派发快照)的改动文件集 ⊆ 其涉及路径(越界改动不提交、留工作区、记越界清单,来源=rev1 全量比对);与失败泳道越界残留清单比对,命中暂停提交报来源不明 → `git commit --only <涉及路径> --no-verify`(绝不 force)→ NIGHT 记 `票 NN: committed(oid=..., rounds=...)`(rounds=该泳道 LLM 轮数,供 live 门禁统计)→ **`night-git.sh publish <repo> <branch> <remote_url>`**(每票即推,防全损;失败降级记账不挂链,下票连着重推)。
-   - **票级评审**:提交后即出发(不等全队),输入=票文件+该票 BASE..HEAD diff+验收标准(只喂票 diff 不喂全仓);不通过 → 票回 `rework`:**追加修复提交**(不 revert 不 force),scoped re-review 上限 2 轮,超限 `paused(评审发现:...)`;通过 → `票 NN: complete(oid=..., tests=<scoped验证证据>, review=<评审证据>)`。**committed 崩在评审前**:恢复优先续做评审(输入=票BASE..HEAD);不可续 → `paused(committed-unreviewed,<oid>)`,提交保留,晨报列明。已提交≠已验收,两态分开记账。
+   - **票级评审**:提交后即请求出发(不等全队),受并发帽约束——评审位满时排队(票保持 committed、review 未过,**不新增台账状态**),有空位时**评审优先补入**(先解锁落地票、放行下游依赖,再派新实施);输入=票文件+该票 BASE..HEAD diff+验收标准(只喂票 diff 不喂全仓);不通过 → 票回 `rework`:**追加修复提交**(不 revert 不 force),scoped re-review 上限 2 轮,超限 `paused(评审发现:...)`;通过 → `票 NN: complete(oid=..., tests=<scoped验证证据>, review=<评审证据>)`。**committed 崩在评审前**:恢复优先续做评审(输入=票BASE..HEAD);不可续 → `paused(committed-unreviewed,<oid>)`,提交保留,晨报列明。已提交≠已验收,两态分开记账。
    - **失败票路径还原**(泳道失败/超时记 paused 时):先确认当前票路径差异仍可归票(对派发快照;不可归票→暂停清理记waiting),再三步——`git reset -- <票路径>`(清 index)→ `git checkout <BASE> -- <票路径>`(还原 tracked;pathspec 无匹配跳过)→ `git clean -fd -- <票路径>`(删新增文件与目录);连带处置该泳道越界残留。账本无 complete 提交但路径有残留的票,恢复时同法清理后再重算就绪集。
    - **frontier 空转保护**:没有可执行票(全 paused/blocked)就交付暂停原因,不空转。
-   - 全部票处理完→**终局全分支 review:派最强档 reviewer**,输入=merge-base..HEAD 全分支 diff+票状态+D/F约束+越界清单;只对重大问题和回归做一轮修复(追加提交)及一次限定复审,普通建议不自动修。残留阻断记paused并传播依赖。
+   - 全部票处理完→**终局全分支 review:派最强档 reviewer**(同占并发帽一位;此时无并行,自然满足),输入=merge-base..HEAD 全分支 diff+票状态+D/F约束+越界清单;只对重大问题和回归做一轮修复(追加提交)及一次限定复审,普通建议不自动修。残留阻断记paused并传播依赖。
    完成:只有全部票complete且终局无活动约束才勾 `impl`;有paused/blocked保持impl未勾,记录等待的解除条件和已完成范围,仍进入收尾交付晨报。
 7. **终局收尾(finish)**:
    - **夜链结论**:`全绿`仅全部票验证complete且没有活动约束/终局阻断;`带停靠完成`仅全部票complete、剩余为非阻断参考;有paused/blocked或活动约束→`未完成`(写已完成范围、解除条件);spec/拆票失败→`失败收工`。短稿不记四值,写未执行实施及原因。
@@ -291,6 +292,7 @@ dirty_snapshot = <OID或none>    # 每次start刷新
 spec = docs/superpowers/specs/<日期>-<主题>-spec.md   # 未到填 -
 tickets = .scratch/<slug>/issues/   # 未到填 -
 impl = <分支名>                 # 实施所在夜链分支
+lanes = 3(--lanes|默认)         # 并发帽生效值(实施+票级评审合计);impl 开始记;续跑改道追记(原值→新值)
 push = 已推(<branch>) | 无远端 | 未推(<原因>)  # 与实施结论分别记录
 waiting = -                    # 有暂停时填F/票编号、解除条件及证据基线
 note = -                       # 可选注记(如 未接下游(推倒重来))
@@ -329,6 +331,7 @@ note = -                       # 可选注记(如 未接下游(推倒重来))
 | remote_url | NIGHT | 脱敏URL \| - | 夜链接管前 | 继承;含凭据串禁止入账 |
 | web_base | NIGHT | URL \| - | 夜链接管前(可选) | 继承 |
 | dirty_snapshot | NIGHT | OID \| none | **每次start** | 刷新 |
+| lanes | NIGHT | 数字(来源:--lanes\|默认) | impl开始;续跑改道追记 | 调度参数,非状态 |
 | push | NIGHT | 已推(...) \| 无远端 \| 未推(原因) | 收工(及预检) | 状态字段 |
 | 票台账行 | NIGHT | complete(oid=,rounds=,tests=,review=) \| paused(原因,解除条件) \| blocked(票号) \| rework(轮次) \| committed-unreviewed(oid) | 逐票 | 状态机 |
 

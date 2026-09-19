@@ -2,7 +2,7 @@
 name: xcheck-setup
 description: 检测本地已装的 AI agent CLI、逐个验证非交互命令能跑通、登记新 agent。手动调用 /xcheck-setup。
 disable-model-invocation: true
-argument-hint: [add <name> | timeout [N | <agent> N] | default [<n1>,<n2>,... | --clear]]
+argument-hint: [add <name> | timeout [N | <agent> N] | default [<n1>,<n2>,... | --clear] | lanes [N]]
 ---
 
 # /xcheck-setup — 检测 / 验证 / 登记 xcheck 的 agent
@@ -82,3 +82,18 @@ xcheck 调用 agent 时给 shell 套的 `timeout <sec>` 上限。**只影响 xch
    - `--clear` → 把实际值行改回注释行 `# default_agents = [...]`(或直接删该行)。
 5. **改完回显**新配置(同无参视图),提示"下次 /xcheck 即生效"。
 6. **不在 setup 阶段校验"已装"**:默认集里的 agent 当前装没装,由运行时 flow.md 第 1 步 detect 判定。setup 只保证名字在 toml 里合法。
+
+## 模式 E:`lanes [...]` → 查看 / 设置夜链并发帽
+
+夜链并行实施的最大并发位:**实施泳道 + 票级评审**合计的同时在跑上限(ADR 0008;冒烟与评审段 fan-out 不在此帽,后者并发=选集家数已有自然控制)。出厂默认 3。单晚临时改用旗标 `/xcheck --night --lanes N`,**优先级 `--lanes > night_parallel_lanes`**。
+
+2 种调用:
+
+- **`/xcheck-setup lanes`**(无参)→ 读 `agents.toml` 的 `[defaults].night_parallel_lanes`,呈现当前值 + 一句语义说明(罩实施+票级评审)+ 优先级提示。
+- **`/xcheck-setup lanes <N>`**(一个整数)→ 把 `night_parallel_lanes` 改成 N。N 非整数或 <1 → **报错不改**。**N ≥ 5 → 警告不拦**(2026-09-19 十个并行子代理触发 429 集体阵亡的前科提示;上游独立或时段空闲时用户确认后照设),复刻模式 C 的"异常区间确认"交互。
+
+执行(主会话):
+
+1. 读 `~/.claude/skills/xcheck/agents.toml`。
+2. 用 **Edit 精确匹配**改 `[defaults]` 块下那行(`night_parallel_lanes = <旧值>` → `night_parallel_lanes = <新值>`),**不要** Write 覆盖整个文件(同模式 C/D 做法)。
+3. 改完回显新值,提示"下次 /xcheck --night 即生效;单晚临时改用 `--lanes` 旗标,不必动配置"。

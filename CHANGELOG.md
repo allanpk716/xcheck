@@ -3,6 +3,22 @@
 All notable changes to `xcheck`. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 本文件记录 xcheck 的所有显著变更。
 
+## [0.23.0] - 2026-09-19
+
+**并发直设与总并发帽**(grill-with-docs 设计访谈定型;决策:[ADR 0008](docs/adr/0008-concurrency-cap-covers-ticket-review.md))。动机:ferryman 夜(11 票全落地)实证——帽设 2 时画面 4+ 子代理在跑,原帽只卡实施泳道,而 429 阵亡根因是**同时打上游的子代理总数**,帽对不准真实风险;且该值此前只能手改 agents.toml。
+
+### Changed / 改进
+
+- **并发帽改语义(ADR 0008)**:`night_parallel_lanes` 从"实施泳道数"改为**总并发帽**——罩实施位+票级评审位合计的同时在跑数;空位**评审优先**补位(先解锁落地票再派新实施);终局评审同占位;冒烟/评审段 fan-out 不在帽内(后者并发=选集家数,已有自然控制);评审排队不新增台账状态(票保持 committed)。默认 **2→3**(ferryman 干净一夜后的升道,即 ADR 0007 预留路径)。
+- **双入口直设**,优先级 `--lanes > night_parallel_lanes`:`/xcheck --night --lanes N` 单晚旗标(单 token 整数 ≥1;仅 `--night` 可携带,否则报错停住;续跑改道只影响后续派发并追记);`/xcheck-setup lanes [N]` 新模式 E(查看/设置,Edit 精确改行,非整数或 <1 报错,≥5 警告不拦——429 前科)。
+- **记账与术语**:NIGHT 新增 `lanes = N(来源:--lanes|默认)`(impl 开始写入;账本字段字典加行);泳道泛化为"夜链并发工作位"(实施位/评审位),CONTEXT 词条同步改写;ADR 0007 保持历史原样。
+- **文档同步**:README/AGENTS/CONTEXT/CHANGELOG 全量对齐 0.23;`docs/diagrams/` 无并发细节不动。
+
+### Scope / 本版边界
+
+- 并发帽语义为静态契约断言 + ferryman 夜的间接实证;**≥4 道的真实夜链压测未跑**(429 阈值未实测,≥5 警告线是经验值)。
+- 离线测试:night-parallel 26→40(新增并发帽断言 14 条)/ review-contract 110 / run-mode 28 / night-git 26 / run-agent 33 = **237 项全绿**;不含模型语义与真实托管验证。
+
 ## [0.22.0] - 2026-09-19
 
 **Pre-release / 预发布**:精简管道重构——在 rc.1 三批(0.19~0.21)基础上,经 grill-with-docs 设计访谈 + codex/pi 三轮盲评(16→15→11 收敛)定型。设计:[0.22 lean pipeline redesign](docs/superpowers/specs/2026-09-19-xcheck-0.22-lean-pipeline-redesign.md)(含 rev1/rev2 与终审附录);决策:[ADR 0004–0007](docs/adr/)。

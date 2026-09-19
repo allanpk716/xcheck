@@ -23,7 +23,7 @@ xcheck 是一组全局 [Claude Code](https://code.claude.com/) skill,把本机�
 
 ### 0.21.0 的分期范围
 
-[批准计划](docs/superpowers/plans/2026-09-19-xcheck-review-convergence-and-portability.md)第一、二批已实现保真共识、`review_schema = 2` 决策/问题账本、限定复审、局部暂停及 `--auto-review`。**0.22 精简重构**:三批功能经盲评修订定型——账本塌缩(字段字典单源)、**接管检出**替代 worktree(隔离是操作者的选择,ADR 0005)、**不自动开PR**(交付止于已推分支+晨报一键compare链接,ADR 0006)、**事件驱动并行实施**(就绪集调度,编辑并行提交串行,ADR 0007)、信任模型三档定界(ADR 0004,`material=external` 失败关闭)。旧协议链一律拒绝续跑+提示新开。
+[批准计划](docs/superpowers/plans/2026-09-19-xcheck-review-convergence-and-portability.md)第一、二批已实现保真共识、`review_schema = 2` 决策/问题账本、限定复审、局部暂停及 `--auto-review`。**0.22 精简重构**:三批功能经盲评修订定型——账本塌缩(字段字典单源)、**接管检出**替代 worktree(隔离是操作者的选择,ADR 0005)、**不自动开PR**(交付止于已推分支+晨报一键compare链接,ADR 0006)、**事件驱动并行实施**(就绪集调度,编辑并行提交串行,ADR 0007)、信任模型三档定界(ADR 0004,`material=external` 失败关闭)。旧协议链一律拒绝续跑+提示新开。**0.23**:并发帽罩实施+票级评审、`--lanes`/`/xcheck-setup lanes` 直设、默认3(ADR 0008)。
 
 配置分离与真正权限隔离**尚未实现**。完整[设计蓝图](docs/superpowers/specs/2026-09-19-xcheck-review-convergence-and-portability-design.md)与[0.22精简重构设计](docs/superpowers/specs/2026-09-19-xcheck-0.22-lean-pipeline-redesign.md)不是已完成功能表。当前 CLI 仍靠提示词要求只读指定材料,**不是强制访问隔离,也不是全库取证**;接管检出只约束提交位置,不隔离文件读取、网络或插件(敌意环境配置出范围,触发条件见 ADR 0004)。diag任何入口都不实施;auto-review诊断不建NIGHT、不通知。
 
@@ -141,8 +141,8 @@ mkdir -p ~/.claude/skills && cp -r xcheck xcheck-setup ~/.claude/skills/
 
 | 命令 | 作用 |
 |---|---|
-| `/xcheck [--auto-review \| --night] [--agents a,b,c] [<文字>]` | 摄入 → 盲评 → 取证 → 裁定交付。裸敲先找兼容未完链,否则解析对象;入口旗标直选(无旗标=交互审核)。--auto-review仅无人值守审核,--night才含spec/票、并行实施与推送(不自动开PR)。模式旗标互斥,续跑不得变更原链交互方式或终点;diag始终不实施。 |
-| `/xcheck-setup` | 检测 / 验证 / 登记 agent。子命令见下。 |
+| `/xcheck [--auto-review \| --night] [--agents a,b,c] [--lanes N] [<文字>]` | 摄入 → 盲评 → 取证 → 裁定交付。裸敲先找兼容未完链,否则解析对象;入口旗标直选(无旗标=交互审核)。--auto-review仅无人值守审核,--night才含spec/票、并行实施与推送(不自动开PR)。模式旗标互斥,续跑不得变更原链交互方式或终点;diag始终不实施。--lanes=单晚并发帽(仅--night可带;罩实施+票级评审,优先级高于 night_parallel_lanes)。 |
+| `/xcheck-setup` | 检测 / 验证 / 登记 agent;`lanes N` 查看或设置夜链并发帽。子命令见下。 |
 
 `/xcheck` 的输入形态:
 
