@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 0.22 并行实施调度契约 + 0.23 并发帽(ADR 0008)的静态布线检查(读 Markdown 断言规则在盘;不含语义回放)。
+# 0.22 并行实施调度契约 + 0.23 并发帽(ADR 0008) + 0.24 有界重试(ADR 0009)的静态布线检查(读 Markdown 断言规则在盘;不含语义回放)。
 # bash xcheck/tests/night-parallel.test.sh
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -75,6 +75,34 @@ contains '优先级旗标大于配置' "$SKILL" '--lanes > agents.toml \[default
 contains 'setup模式E存在' "$SETUP" '模式 E:.`lanes|模式 E.*lanes'
 contains 'setup警告不拦' "$SETUP" '警告不拦'
 contains 'ADR0008在册' "$ADR8" '并发帽'
+
+printf '== 有界重试(0.24,ADR 0009) ==\n'
+contains '四态回报不触发重试' "$FLOW" '四态.*不触发'
+contains '失败检出三步还原后才进等待' "$FLOW" '失败检出.*三步还原.*还原完成'
+contains '互斥由四态扩为五态' "$FLOW" '互斥由四态扩为五态'
+contains '互斥五态含重试等待中票' "$FLOW" '重试等待中票.*不相交'
+contains '重试占位不回填' "$FLOW" '占位.*不回填'
+contains '重试梯起跳60s' "$FLOW" '60s'
+contains '重试梯封顶15min' "$FLOW" '封顶 15min|15min\(封顶\)'
+contains '额外等待恰30分钟' "$FLOW" '1800s|恰 30 分钟'
+contains '每单元night_retry_max上限' "$FLOW" 'night_retry_max.*默认 5'
+contains '错峰同一波失败集合' "$FLOW" '调度循环.*失败集合'
+contains '错峰i从0起' "$FLOW" 'i 从 0 起'
+contains '错峰续跑检出序号升序重赋' "$FLOW" '检出序号升序重赋'
+contains '首行记法impl retry' "$FLOW" '票 NN impl retry'
+contains '首行记法review retry' "$FLOW" '票 NN review retry'
+contains '首行记法终局review retry' "$FLOW" '终局review retry'
+contains '首行带检出序号m' "$FLOW" '检出序号=m'
+contains '重试追记实际派发时落盘' "$FLOW" '实际派发'
+contains '断链重建整档重等' "$FLOW" '整档重等'
+contains '计数从追记行重建不重置' "$FLOW" '重建.*计数|计数从追记行重建'
+contains 'retries尾注只记实施位' "$FLOW" 'retries=k.*只记实施位'
+contains '重试耗尽paused带阶段' "$FLOW" '重试耗尽.*阶段='
+contains '终局耗尽waiting不勾finish' "$FLOW" '终局评审重试耗尽.*finish 不勾'
+contains '重试追记行非新状态' "$FLOW" '重试追记行.*非新状态'
+absent '票台账无retrying新状态' "$FLOW" 'retrying'
+contains 'night_retry_max默认5(toml)' "$TOML" 'night_retry_max = 5'
+contains 'retry关闭注释(toml)' "$TOML" '0 = 关闭|0=关闭'
 
 printf 'Scope: 静态布线断言;无模型语义回放、无真实实施/推送。\n'
 printf 'Result: %d pass, %d fail\n' "$PASS" "$FAIL"
