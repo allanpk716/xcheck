@@ -4,7 +4,7 @@
 
 ## Language
 
-> **版本边界**:0.19~0.21 三批(审核收敛/模式解耦/隔离交付)经 0.22 精简重构定型:账本塌缩、接管检出替代 worktree、不自动开PR、事件驱动并行实施(0.23 起并发帽罩票级评审,ADR 0008);决策记录见 [ADR 0004-0008](docs/adr/)。下列review现行术语仅用于 `review_schema = 2`;旧协议链一律拒绝续跑,不重解释历史“必改/收敛”。diag保持旧语义,始终不实施。配置分离与真正权限隔离尚未实施。权威契约见 [review-contract.md](xcheck/lib/review-contract.md)与[night-delivery.md](xcheck/lib/night-delivery.md)。
+> **版本边界**:0.19~0.21 三批(审核收敛/模式解耦/隔离交付)经 0.22 精简重构定型:账本塌缩、接管检出替代 worktree、不自动开PR、事件驱动并行实施(0.23 起并发帽罩票级评审,ADR 0008);决策记录见 [ADR 0004-0009](docs/adr/)。下列review现行术语仅用于 `review_schema = 2`;旧协议链一律拒绝续跑,不重解释历史“必改/收敛”。diag保持旧语义,始终不实施。配置分离与真正权限隔离尚未实施。权威契约见 [review-contract.md](xcheck/lib/review-contract.md)与[night-delivery.md](xcheck/lib/night-delivery.md)。
 
 ### 核心模型
 
@@ -114,8 +114,12 @@ _Avoid_: 全自动模式(与「自动链」混淆)、接管等于安全沙箱、
 _Avoid_: 接管等于隔离、worktree仪式(0.21及更早)
 
 **就绪集与泳道(ready set / lane)**:
-并行实施的调度单位。就绪集=自身无活动约束 ∧ 依赖票全complete ∧ 涉及路径与占径票(在跑/paused未清理/committed-unreviewed/rework)及脏区不相交的票;任一票落地事件触发重算并补位。泳道=夜链的一个**并发工作位**,分实施位(只改文件、跑票内验证,严禁 git add/commit,提交权只在主会话;编辑并行、提交串行)与评审位(只读、出票级评审报告);并发帽 `night_parallel_lanes`(默认3,`--lanes` 单晚覆盖)罩两者合计的同时在跑数,空位评审优先;落者记paused不拖队。
+并行实施的调度单位。就绪集=自身无活动约束 ∧ 依赖票全complete ∧ 涉及路径与占径票(在跑/重试等待中含已还原未重派,视同在跑/paused未清理/committed-unreviewed/rework)及脏区不相交的票;任一票落地事件触发重算并补位。泳道=夜链的一个**并发工作位**,分实施位(只改文件、跑票内验证,严禁 git add/commit,提交权只在主会话;编辑并行、提交串行)与评审位(只读、出票级评审报告);并发帽 `night_parallel_lanes`(默认3,`--lanes` 单晚覆盖)罩两者合计的同时在跑数,空位评审优先;泳道失败经有界重试(ADR 0009),耗尽才记paused不拖队。
 _Avoid_: 波次整批推进、泳道自行提交、把并发帽理解成只数写码的票(评审同占位)
+
+**有界重试(bounded retry)**:
+实施段派发单元失败后的当夜自动恢复机制(ADR 0009)。先还原再等待:失败检出经可归票校验、三步还原后才进梯,还原不可归票/失败不进梯走既有 waiting。递增梯 60s 起×2、封顶 15min(写死契约),每派发单元一条独立梯,N=night_retry_max(默认5,0=关闭回落失败即 paused);N=5 时额外等待合计恰 30min。重试中占住泳道位不回填,路径视同在跑;同波(同一次调度循环检出的失败集合)按检出顺序错峰,第 i 个加 i×30s(i 从0起),续跑按首行检出序号升序重赋 i。轨迹落盘可断链重建:首行(impl/review/终局review 前缀+检出序号)还原完成后落,每次实际派发追记 retry k/N,计数重建不重置、整档重等。耗尽记 paused(带阶段),终局评审耗尽记 waiting 且 finish 不勾;票行尾注 retries=k 只记实施位。无全局预算、无独立冷却,不自动升降并发;冒烟/评审 fan-out 等帽外段零重试。
+_Avoid_: 把重试当成自动升降并发(ADR 0007/0008 否决的是配置自动升降,重试是运行时有界异常响应)、把 retries=k 当新台账状态、把帽外段(冒烟/评审 fan-out)当成已覆盖
 
 **交付基线冻结(0.22)**:
 NIGHT记start_oid/branch/remote_url(脱敏)/pr_base/web_base,接管时冻结、复审继承;每次start刷新脏区底账与内容快照。含凭据URL剥userinfo后才可入账。
