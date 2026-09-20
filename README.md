@@ -29,21 +29,11 @@ xcheck 是一组全局 [Claude Code](https://code.claude.com/) skill,把本机�
 
 ## 快速开始
 
-```bash
-git clone <本仓库> && cd xcheck
-mkdir -p ~/.claude/skills && cp -r xcheck xcheck-setup ~/.claude/skills/
-```
+从零安装(装 Claude Code、装 xcheck、把各家 AI CLI 配成评审 agent)有单独的上手指南,**推荐直接把那份文档交给你的 AI 照做**:[docs/getting-started.md](docs/getting-started.md)。
 
-> Windows 开发机可以用 junction 代替拷贝(免提权,且是活的——改仓库即改 skill):
-> ```bash
-> cmd //c mklink //J "%USERPROFILE%\.claude\skills\xcheck"      "<仓库绝对路径>\xcheck"
-> cmd //c mklink //J "%USERPROFILE%\.claude\skills\xcheck-setup" "<仓库绝对路径>\xcheck-setup"
-> ```
+已有环境的要点:把仓库的 `xcheck`、`xcheck-setup` 两个目录放进 `~/.claude/skills/`(Windows 用 junction,活链接——改仓库即改 skill);确保 [Claude Code](https://code.claude.com/) 可用、**至少两个** agent CLI 在 `PATH` 上、已登录(出厂认识:`claude`、`codex`、`opencode`、`pi`、`kimi`,加新的见 [agent 管理](#agent-管理);至少一家非 `claude` 才有意义);在 Claude Code 里跑一次 `/xcheck-setup` —— 逐家实测非交互能不能跑通,给出 ✅ / ⏱️ / ❌ / 🔑 一览。出厂默认评审组 = **codex + pi**(`agents.toml` 里的 `default_agents`),不合适就换:`/xcheck-setup default codex,kimi`。
 
-1. 确保 [Claude Code](https://code.claude.com/) 可用,且**至少两个** agent CLI 在 `PATH` 上、已登录。出厂认识:`claude`、`codex`、`opencode`、`pi`、`kimi`(加新的见 [agent 管理](#agent-管理))。要有意义,至少一家得是非 `claude`。
-2. 在 Claude Code 里跑一次 `/xcheck-setup` —— 逐家实测非交互能不能跑通,给出 ✅ / ⏱️ / ❌ / 🔑 一览。
-3. 出厂默认评审组 = **codex + pi**(`agents.toml` 里的 `default_agents`),不合适就换:`/xcheck-setup default codex,kimi`。
-4. 给它任何东西:
+然后给它任何东西:
 
 ```
 /xcheck 评审 docs/superpowers/specs/2026-09-16-foo-design.md
@@ -52,7 +42,7 @@ mkdir -p ~/.claude/skills && cp -r xcheck xcheck-setup ~/.claude/skills/
 /xcheck --auto-review 评审 docs/superpowers/specs/2026-09-16-foo-design.md
                    ← 无人值守审核:必要时修订并复审一次,到审核交付结束,不实施或发布
 /xcheck --night 评审 docs/superpowers/specs/2026-09-16-foo-design.md
-                   ← 夜链:评审完自动固化 spec、拆票、逐票实施,每票推远端,收工开 PR,早上看 PR 和晨报
+                   ← 夜链:评审完自动固化 spec、拆票、逐票实施,每票推远端,收工不开 PR(晨报给 compare 链接),早上看晨报
 /xcheck            ← 裸敲:续跑未完成的链,或从刚才的对话里猜你要评什么
 ```
 
@@ -163,6 +153,7 @@ mkdir -p ~/.claude/skills && cp -r xcheck xcheck-setup ~/.claude/skills/
 | `/xcheck-setup add <name>` | 登记新 CLI:核实 `--help`、引导填 `agents.toml` 字段、立即验证,失败自动回退 |
 | `/xcheck-setup timeout [N \| <agent> N]` | 查看 / 设置 agent 总执行预算(默认集全局 2700s,可按家覆盖) |
 | `/xcheck-setup default [a,b,c \| --clear]` | 查看 / 设置 / 清空默认评审组 |
+| `/xcheck-setup lanes [N]` | 查看 / 设置夜链并发帽(ADR 0008;出厂 3;单晚 `--lanes` 旗标优先) |
 
 ## 产物落在哪
 
@@ -217,7 +208,7 @@ mkdir -p ~/.claude/skills && cp -r xcheck xcheck-setup ~/.claude/skills/
 - **大文档**没有命令行长度问题:指令层与内容层分离,全文由 agent 自己读文件,绕开 Windows 32767 字符上限。
 - **修订预算**:正常模式两轮后仍有活动约束时由用户选择再修/交付/放弃;无人值守审核与night都最多自动修订一次,无可执行修复不空转。预算耗尽不解除阻断。旧链迁移也保留已用自动修订次数,无法核实则禁止自动再修,不会因新环轮次归零获得额外预算。
 - **材料范围不是权限隔离**:当前提示词限制读取列出的材料,CLI实际权限仍依赖现有配置(包括codex的danger-full-access);接管检出也不隔离文件读取、网络或插件;`material=external`+自动实施按 ADR 0004 失败关闭。沙箱能力尚未实施。
-- **夜链只保进度不合并**:`--night` 每票自动推远端、收工自动开 PR,但绝不自动合并、绝不 force push——合并是早上的手工决定;评审判"推倒重来"、链被中止或 diag 模式不接下游(不写代码,也不推送)。
+- **夜链只保进度不合并**:`--night` 每票提交后即推夜链分支,收工**不自动开 PR**(晨报给脱敏 compare 一键链接),也绝不自动合并、绝不 force push——开 PR 与合并都是早上的手工决定;评审判"推倒重来"、链被中止或 diag 模式不接下游(不写代码,也不推送)。
 - 在 **Windows + Git Bash** 上开发与实测;其它 bash 环境理论可用,未系统验证。
 - 最低工具版本(0.22 实测口径):**bash ≥ 4.4**(`[[ -v ]]` 需 4.3、`mapfile -d` 需 4.4;macOS 自带 3.2 不达标)、**git ≥ 2.36**(worktree/porcelain -z 系特性;Git for Windows 现行版本远超)。低于下限时 helper 报错方向可能误导,先升工具。
 - 夜链建议 **0 点后启动**:22:00–24:00 为上游晚高峰(实测每轮延迟 3–6 倍),见速度诊断。
@@ -236,16 +227,16 @@ xcheck/
 │   ├── extractor-carrier.md        # 摘录员指令(按来源摘原话)
 │   ├── night-delivery.md           # 0.22精简交付协议:接管/提交纪律/发布(不自动开PR)
 │   ├── night-git.sh                # start/snapshot/publish:接管检出、脏内容快照、显式URL推送
-│   ├── run-mode.sh                 # 纯模式解析(request+两持久字段)
-│   ├── run-mode.sh                 # 纯模式解析/旧字段映射/续跑一致性校验
+│   ├── run-mode.sh                 # 纯模式解析(request+两持久字段/续跑一致性校验)
 │   ├── run-agent.sh                # agent 执行 supervisor(超时/挂起/击杀/取证)
 │   └── detect.sh                   # PATH 探测
 ├── prompts/                        # diag/review/re-review + 汇总 + 分模式三分类
 └── tests/                          # supervisor回归 + review协议离线检查/样例
-xcheck-setup/SKILL.md               # /xcheck-setup 壳(4 种模式)
+xcheck-setup/SKILL.md               # /xcheck-setup 壳(5 种模式)
 CONTEXT.md                          # 术语表(权威定义)
 AGENTS.md                           # 给 AI agent 的维护导览
 docs/artifacts.md                   # .xcheck/ 产物解读(给 AI agent)
+docs/getting-started.md             # 上手指南:安装+评审 agent 配置(给 AI 的执行剧本)
 docs/adr/                           # 架构决策记录
 docs/cli-findings.md                # 各 CLI 非交互契约的实测记录(agents.toml 的事实来源)
 docs/superpowers/                   # 设计稿与实施计划(历史存档)

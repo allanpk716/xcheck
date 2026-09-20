@@ -6,9 +6,8 @@
 
 读取最新关联环的 `PROGRESS.md`,不要只按目录时间戳猜是否完成。所有新记录(包括diag)均保存 `interaction`/`target`;先按下文模式规则核验,不能仅凭 `night` 或终态名决定是否实施。
 
-- `mode = review` 且 `review_schema = 2`:按本文新版协议解释。沿 `next`/`prev` 找最新环;旧迁移来源通过 `migrated_from` 关联。已交接环(gate 已勾且 next 有值)不是需要重跑的环。
+- `mode = review` 且 `review_schema = 2`:按本文新版协议解释。沿 `next`/`prev` 找最新环。已交接环(gate 已勾且 next 有值)不是需要重跑的环。
 - review 无 `review_schema`:旧协议,不得把旧“必改/收敛”重解释为新版阻断结论。已结束的旧记录只读保留。
-- 未完旧 review:skill 保留原目录,幂等建立 `migrated_from=<旧ts>` 的新 schema2 首环,从可取得的对象/背景重新审核,不继承旧验证或通过。已有迁移目标则沿目标续跑,不反复建环;源内容缺失则停止。
 - **旧协议链(无review_schema、或NIGHT为0.21及更早字段集)一律拒绝续跑+提示新开(0.22)**:只读保留,不迁移不重放;无PROGRESS极旧目录仍静默忽略。
 - 未知 schema 或新版必要材料缺失:报告状态不一致,不得凭勾选跳阶段。
 - `mode = diag`:仍是诊断综合与旧三分类,不写 review_schema,不走新版 D/F 与验证链。
@@ -82,8 +81,8 @@ smoke_cfg = <sha256>
 - `source`:正常审核/auto-review为对象绝对路径或inline,复审指新稿;完整night始终inline,`original_source`仅追溯原始文件/inline,不得作为写回目标。`prev`/`next`关联复审环。
 - `material = trusted|external`(0.22):来源为外部的材料(贴文/URL/跨仓,无论键入粘贴)记external,第11步失败关闭门使用。字段唯一定义处=flow.md「账本字段字典」;业务未提交变更不自动stash、commit或复制,夜链脏区底账与停靠规则处理。
 - `smoke_cfg`:最近实际冒烟通过时 agents.toml 的 sha256;跳冒烟须同时满足最近真实成功、配置指纹一致、上轮该家完整成功,不从连续跳过记录推导成功。
-- `auto_revisions_used`:原生首环0,自动修订递增并跨环保留。迁移旧round≥1至少记1,无法核实为unknown并禁自动再修;新首环round=0不重置已用预算。
-- `interaction`/`target`:所有新mode都必须同时保存。合法组合仅 `interactive/review`(正常审核)、`unattended/review`(--auto-review)、`unattended/implementation`(--night)。复审/迁移继承原模式。
+- `auto_revisions_used`:原生首环0,自动修订递增并跨环保留;新首环round=0不重置已用预算。
+- `interaction`/`target`:所有新mode都必须同时保存。合法组合仅 `interactive/review`(正常审核)、`unattended/review`(--auto-review)、`unattended/implementation`(--night)。复审继承原模式。
 - 只有两字段同时缺失才作旧兼容映射:`night=on`→完整night,无night→正常审核;半缺、非法枚举、非法组合或与night标记冲突拒绝。`night=on`仅完整night的兼容标记,不是单独授权。
 - `lib/run-mode.sh <MODE_REQUEST> [<interaction或-> <target或-> <night或->]`为纯解析helper,MODE_REQUEST为default/interactive/auto-review/night;恢复必传后三项。新命令无显式模式按账本恢复,显式模式不符停止;非零拒绝继续,不得source/eval输出。它不检查schema、产物完整性或执行权限。
 - `target=review`不建立NIGHT、不运行第11步、不创建实施票、不通知/推送/PR,仍可写本地审核快照/共识稿/修订稿/附录;若已有NIGHT则状态冲突。diag无论入口如何都不实施;完整night允许NIGHT短稿及可选通知,auto-review diag不建NIGHT、不通知。

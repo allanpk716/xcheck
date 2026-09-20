@@ -3,6 +3,26 @@
 All notable changes to `xcheck`. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 本文件记录 xcheck 的所有显著变更。
 
+## [Unreleased]
+
+### Added / 新增
+
+- **上手指南 [docs/getting-started.md](docs/getting-started.md)**:安装+评审 agent 配置的完整剧本,**写给同事的 AI 执行**(人把文档交给 AI 照做,每步命令+验收)。五步:装 Claude Code(点名推荐安装器)→ clone+junction 装 xcheck → 按档位装评审 agent CLI(最小推荐 codex+pi / 全家桶五家;npm 包名实核,kimi 走官方渠道)→ 配 key/endpoint(本机实配脱敏样板,**"这边建议"框架**——AI 对照当时官方文档核实执行,不逐字照抄;集团网关留 base_url 替换口)→ `/xcheck-setup` 验收全绿+试跑。平台口径 Windows+Git Bash。
+
+### Fixed / 修复(文档过时点清零)
+
+- README:快速开始瘦身并链向上手指南;两处"收工自动开 PR"旧语义(0.18/ADR 0003 遗留)改为现行"不自动开 PR,晨报给 compare 链接"(ADR 0006);`/xcheck-setup` 子命令表补 `lanes` 行;删重复 run-mode.sh 树行;"4 种模式"→5;仓库树收入 getting-started。
+- docs/cli-findings.md:"三家"改口五家;**补 pi 实测条目**(2026-09-20,pi 0.74.2,bigmodel coding 端点,stdout 即回复);codex run_cmd 收现行旗标 `--skip-git-repo-check -s danger-full-access` 并加注脚(2026-08-15/09-06 两事故);版本口径更新至 2026-09-20。
+- **迁移残留清零**(0.22 删迁移后的漏网):docs/artifacts.md×4、AGENTS.md、review-contract.md、CONTEXT.md `auto_revisions_used` 词条——`migrated_from`/"旧迁移 round≥1"/"复审/迁移继承"全删。
+- xcheck/lib/subagent-carrier.md:泳道失败语义对齐 0.24 有界重试(ADR 0009),删"超时/失败记 paused 不拖队"旧句。
+- AGENTS.md:测试义务补 night-parallel 套件;文档同步义务挂 getting-started(安装/评审 agent 配置口径变化须同步)。
+- CONTEXT.md:新增「**评审 agent**」词条(_Avoid_:搬运工、审核者)。
+- xcheck/agents.toml:`default_agents` 注释"出厂不设"对齐实际出厂 codex+pi。
+
+### Scope / 边界
+
+- 纯文档与注释同步,无行为变更;回归 5 套件 **263 断言全绿**(run-agent 33/run-mode 28/review-contract 110/night-git 26/night-parallel 66)。`docs/diagrams/` 仍为 0.19 前快照(未跟踪、未重生成,另行处理)。
+
 ## [0.24.0] - 2026-09-20
 
 **泳道失败有界重试**(grill-with-docs 设计访谈 + 交互评审三轮收敛 + 夜链评审两轮 + D13 确认;决策:[ADR 0009](docs/adr/0009-bounded-retry-on-lane-failure.md),显式取代 ADR 0007『落者超时/失败记 paused,不拖队』条款——仅该条款,并发帽与调度决策不受影响)。动机:多项目共用上游账号时分钟级并发争抢是常态而非偶发(2026-09-19 十并行子代理 429 集体阵亡实证,CLI 秒级内部重试被持续拥塞打穿),现行"落者超时/失败立即 paused"一次分钟级争抢就丢一整晚产能、恢复全靠次日人工续跑;改为**有界重试**——失败单元先还原再进递增等待梯、梯内自动重派,耗尽才 paused。

@@ -114,7 +114,7 @@ review_schema = 2
 
 ## 交互方式与执行终点
 
-新PROGRESS写interaction/target,复审和迁移原样继承。三种有效组合:interactive/review(正常审核)、unattended/review(--auto-review)、unattended/implementation(--night)。未提供模式旗标的续跑按账本恢复,显式旗标与账本不符就停止,不悄悄升级或降级。
+新PROGRESS写interaction/target,复审原样继承。三种有效组合:interactive/review(正常审核)、unattended/review(--auto-review)、unattended/implementation(--night)。未提供模式旗标的续跑按账本恢复,显式旗标与账本不符就停止,不悄悄升级或降级。
 
 `lib/run-mode.sh`是模式规范化的唯一机械入口:传request,续跑另传(interaction,target)两个持久字段,缺失记`-`;非法或半缺拒绝。它只解析模式,不验证schema或授予执行权限。(旧协议链在恢复模式即被整体拒绝,无night兼容映射。)
 

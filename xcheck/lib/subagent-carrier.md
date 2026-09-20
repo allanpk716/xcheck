@@ -153,4 +153,4 @@ agent 没说某个字段就写 `(未提及)`,**不要**替它编。
 疑虑/缺什么: <一句话;没有写无>
 ```
 
-主会话处理回报:DONE → 走票落地(提交前校验+commit --only+publish);DONE_WITH_CONCERNS 先读疑虑再定;NEEDS_CONTEXT 补可确认材料重派;Blocked 按既定范围拆小/换档,仍缺关键决定记 paused。泳道超时/失败记 paused 不拖队,路径按失败票三步还原。
+主会话处理回报:DONE → 走票落地(提交前校验+commit --only+publish);DONE_WITH_CONCERNS 先读疑虑再定;NEEDS_CONTEXT 补可确认材料重派;Blocked 按既定范围拆小/换档,仍缺关键决定记 paused。泳道异常终止/回报缺失/超时先走有界重试梯(ADR 0009:60s 起步、×2、封顶 15min,每单元至多 night_retry_max 次、0=关闭;四态回报不触发,重试中占位不回填、同波错峰),耗尽才记 paused 不拖队,路径按失败票三步还原。

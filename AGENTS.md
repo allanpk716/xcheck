@@ -94,7 +94,7 @@ flow.md(严格保持0~11编号)
 | `xcheck/lib/detect.sh` | PATH 探测(`command -v`;stdout=已装,stderr=登记未装) | CRLF 容错解析,勿引入重依赖 |
 | `xcheck/prompts/diag.md` `review.md` `re-review.md` | 外部agent指令模板 | 防自代入护栏不可删;review新增DECISIONS_PATH,复审另有RE_REVIEW_PATH;填路径后UTF-8≤2048字节;返回形状同步RESULT_SHAPE/carrier |
 | `xcheck/prompts/synthesize-diag.md` `synthesize-review.md` `triage.md` `triage-review.md` | 主会话汇总、分模式分类 | diag不变;review三类稳定F,最终裁定先入FINDINGS再投影,禁止恢复旧必改并集 |
-| `xcheck-setup/SKILL.md` | 4 种模式:检测验证 / add / timeout / default | setup 不校验"已装"(运行时 detect 管);homogeneity 只警告不拦 |
+| `xcheck-setup/SKILL.md` | 5 种模式:检测验证 / add / timeout / default / lanes | setup 不校验"已装"(运行时 detect 管);homogeneity 只警告不拦 |
 | `xcheck/tests/run-agent.test.sh` | supervisor 的 stub 回归(33 断言,零依赖,~15s) | 改 run-agent.sh / toml 解析必须全绿;新行为补断言 |
 
 ## 铁律(不变量——改代码、改文档、改 prompt 都不许破)
@@ -115,7 +115,7 @@ flow.md(严格保持0~11编号)
 - **模式字段(所有mode)**:新PROGRESS必写interaction/target。仅interactive/review、unattended/review、unattended/implementation有效;分别对应正常审核、--auto-review、--night。字段缺失/非法拒绝;闸门只看这两个字段不派生第三变量。显式请求不符不能接管原链;复审继承模式。target=review若有NIGHT即状态冲突,不能借终态"夜间收工"接实施。
 - **PROGRESS阶段**仍11值:`intake, detect, smoke, fanout, collect, synthesize, triage, verify, experiments, deliverable, gate`。gate须已终态或新rev/新环已建且next已记;沿next找最新环,不重跑交接环。
 - **schema2新字段/材料**:review_schema=2、next、material;intake完成须proposal+decisions,triage完成须FINDINGS,复审须re-review-context及上一环映射。D/F链内稳定,复审保留完整历史;必需产物缺失/未知schema停止。
-- **自动修订预算**:auto_revisions_used原生0、自动修订递增且跨环保留;旧迁移round≥1至少记1,无法核实写unknown禁止自动再修,不因新环round=0重置预算。
+- **自动修订预算**:auto_revisions_used原生0、自动修订递增且跨环保留,不因新环round=0重置预算。
 - **终态七值**保留:无需修订=首轮活动约束空;收敛(N轮修订)=修订后活动约束空;用户不修=用户先交付但约束保留;夜间收工=auto-review或night的策略预算/决策边界交付,不代表实施权限;推倒重来仅用户明确放弃;用户中止;完成(diag)。无需建议清零,结束不等于放行/实现完成。
 - **SUMMARY五字段**:状态(可推进/相关路径暂停)、活动约束(证据或缺口/范围/解除条件)、各家裁决、信号、统计。先FINDINGS裁定,后机械投影;附录和对话精选建议不扩票。
 - **NIGHT四阶段**review/plan/impl/finish不变,review夜链写schema2。票只以complete(可达提交+rounds+scoped验证记录)/paused(原因及解除条件)/blocked(依赖票)/rework(轮次)/committed-unreviewed(oid)调度,不能有行就跳过。有paused/blocked或全局待决则写waiting(解除条件与证据基线),impl/finish未勾,晨报可先交付;恢复先核新证据并更新D/F再重算就绪集,没有则返回暂停摘要,不重复实施/发布/通知。全部票处理完成才勾finish;全部complete且无约束/终局阻断才全绿,只剩非阻断参考可带停靠完成,有paused/blocked/活动约束则未完成,spec/拆票失败则失败收工。push记录已推/未推及原因/无远端;全绿不代表发布成功。
@@ -148,13 +148,13 @@ Windows 已知坑(都已在代码里处理,重构时别退化):反斜杠路径�
 bash xcheck/tests/run-agent.test.sh    # 零依赖(只要 bash + coreutils),~15s,33 断言
 ```
 
-改night-delivery/night-git及第11步需跑 `bash xcheck/tests/night-git.test.sh`;只用临时repo与本地bare remote,不得真实推送。机械Git通过不证明全链行为已验收。改模式解析/入口/恢复需跑 `bash xcheck/tests/run-mode.test.sh`。改 `run-agent.sh`、`detect.sh`、`agents.toml` 解析逻辑 → **必须全绿再交付**。review契约/模板/flow还需跑 `bash xcheck/tests/review-contract.test.sh` 的离线结构与样例检查(含字段字典同步锁);静态检查不能证明模型正确理解,须区分已运行检查、场景回放和未授权未执行的真实CLI端到端。禁止偷偷调用付费CLI或外发材料作验收。
+改night-delivery/night-git及第11步需跑 `bash xcheck/tests/night-git.test.sh`;只用临时repo与本地bare remote,不得真实推送。机械Git通过不证明全链行为已验收。改模式解析/入口/恢复需跑 `bash xcheck/tests/run-mode.test.sh`;改并发帽/泳道调度/有界重试需跑 `bash xcheck/tests/night-parallel.test.sh`(0.24,66 断言)。改 `run-agent.sh`、`detect.sh`、`agents.toml` 解析逻辑 → **必须全绿再交付**。review契约/模板/flow还需跑 `bash xcheck/tests/review-contract.test.sh` 的离线结构与样例检查(含字段字典同步锁);静态检查不能证明模型正确理解,须区分已运行检查、场景回放和未授权未执行的真实CLI端到端。禁止偷偷调用付费CLI或外发材料作验收。
 
 ## 文档同步义务(改行为必须五处对齐)
 
 1. `CHANGELOG.md` —— 新版本条目,中英对照,写清根因与设计稿链接(体例看旧条目)。
 2. `CONTEXT.md` —— 新术语入表 / 旧术语改口径(附 _Avoid_)。
-3. `README.md` —— 用户可感知的行为变化。
+3. `README.md` —— 用户可感知的行为变化;安装/评审 agent 配置口径变化同步 `docs/getting-started.md`。
 4. `AGENTS.md`(本文)+ `docs/artifacts.md` —— 协议、不变量、产物格式变化。
 5. `docs/superpowers/specs|plans/` —— 大改先落设计稿与计划(体例看旧稿),再动实现。
 

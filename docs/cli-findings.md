@@ -1,29 +1,36 @@
 # CLI Smoke Findings — `/xcheck` Task 1
 
-Empirically confirmed non-interactive invocations for the three local AI agent
-CLIs that `/xcheck` will shell out to. These values feed Task 2's `agents.toml`
-verbatim.
+Empirically confirmed non-interactive invocations for the five local AI agent
+CLIs that `/xcheck` will shell out to (claude, codex, opencode, pi, kimi).
+These values feed `agents.toml` verbatim.
 
 **Environment**
 - Platform: Windows 10 + Git Bash (MSYS), GNU coreutils `timeout` 8.32.
-- Versions tested: `claude` 2.1.202, `codex` 0.141.0, `opencode` 1.17.12. `kimi` (Kimi Code CLI) 0.35.0 added 2026-08-12.
+- Versions tested (initial smoke): `claude` 2.1.202, `codex` 0.141.0, `opencode` 1.17.12. `kimi` (Kimi Code CLI) 0.35.0 added 2026-08-12; `pi` 0.74.2 added 2026-09-20. As of 2026-09-20 the registry runs: `claude` 2.1.273, `codex` 0.153.0, `opencode` 1.18.18, `pi` 0.74.2, `kimi` 0.35.0.
 - Each command below was run with a 90s wall-clock timeout; every call returned
   well under that — **no CLI hung**.
-- All three CLIs were already authenticated — no auth walls encountered.
+- All CLIs were already authenticated — no auth walls encountered.
 
 ## Decisions (the table Task 2 copies verbatim)
 
 | CLI       | `input_mode` | `run_cmd` (template)                         | Reply text location in output                     |
 |-----------|--------------|----------------------------------------------|---------------------------------------------------|
 | claude    | `arg`        | `claude -p {prompt}`                         | Whole stdout (claude prints only the reply)       |
-| codex     | `stdin`      | `codex exec -`                               | Last line of stdout (after a `codex` role banner) |
+| codex     | `stdin`      | `codex exec --skip-git-repo-check -s danger-full-access -`¹ | Last line of stdout (after a `codex` role banner) |
 | opencode  | `arg`        | `opencode run {prompt}`                      | Last non-empty stdout line (after a small banner) |
+| pi        | `arg`        | `pi -p {prompt}`                             | Whole stdout (pi prints only the reply)           |
 | kimi      | `arg`        | `kimi -p {prompt}`                           | After the `• ` bullet prefix on stdout (no banner)|
 
 `{prompt}` is substituted as a single shell-quoted argv element for `arg` CLIs.
-For `stdin`, the prompt bytes are piped to `codex exec -`'s stdin (no argv
-prompt). Template substitution + stdin piping will be implemented by the Task 2
-carrier; the values above are the locked contract.
+For `stdin`, the prompt bytes are piped to `codex exec`'s stdin (no argv
+prompt). Template substitution + stdin piping are implemented by the carrier
+(`lib/run-agent.sh`); the values above are the locked contract.
+
+¹ The codex flags were added after the initial smoke: `--skip-git-repo-check`
+(2026-08-15 — codex refuses to run outside trusted git directories) and
+`-s danger-full-access` (2026-09-06 — codex-cli 0.153.0 on Windows blocks all
+process creation under read-only/workspace-write sandboxes in non-interactive
+mode). Reasons and evidence live in the `agents.toml` comments.
 
 ## `--format json` decision for opencode: **DROP — use default formatted text**
 
@@ -110,6 +117,20 @@ For completeness, `--format json` produced usable NDJSON (reply in the
 {"type":"text","timestamp":1786247246328,"sessionID":"ses_...","part":{"id":"prt_...","messageID":"msg_...","type":"text","text":"hello-from-opencode","time":{"start":1786247246316,"end":1786247246321}}}
 ```
 
+### pi (arg) — marker `hello-from-pi`
+
+```bash
+$ timeout 120 pi -p "Reply with exactly this sentence and nothing else: hello-from-pi"
+hello-from-pi
+# exit 0
+```
+
+Stdout is just the reply — as clean as claude: no banner, no ANSI, no hook/MCP
+noise (verified 2026-09-20, pi 0.74.2, bigmodel coding endpoint). The 120s
+budget (not 90s) matches `smoke_timeout_sec = 120` in `agents.toml` — a buffer
+for bigmodel channel variance. Provider config lives in `~/.pi/agent/`
+(`settings.json` + `models.json`); setup walkthrough: `docs/getting-started.md`.
+
 ### kimi (arg) — marker `hello-from-kimi` and `ok-multi-line-kimi`
 
 ```bash
@@ -160,10 +181,13 @@ coding endpoint with a K3 model); no login flow needed.
 input_mode = "arg"      # run_cmd: claude -p {prompt}
 
 # codex
-input_mode = "stdin"    # run_cmd: codex exec -   (prompt piped to stdin)
+input_mode = "stdin"    # run_cmd: codex exec --skip-git-repo-check -s danger-full-access -
 
 # opencode
 input_mode = "arg"      # run_cmd: opencode run {prompt}   (no --format flag)
+
+# pi
+input_mode = "arg"      # run_cmd: pi -p {prompt}
 
 # kimi
 input_mode = "arg"      # run_cmd: kimi -p {prompt}
