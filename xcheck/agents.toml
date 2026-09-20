@@ -26,6 +26,12 @@ default_agents = ["codex", "pi"]
 # /xcheck-setup lanes N 改本值,或单晚旗标 /xcheck --night --lanes N
 # (优先级 旗标 > 本值;N≥5 警告不拦)。
 night_parallel_lanes = 3
+# 夜链有界重试(0.24,ADR 0009):实施段派发单元(实施位/票级评审/终局 review)失败后的
+# 重试次数上限,每单元独立计,互不共享。0 = 关闭重试,失败即 paused(回落现行行为)。
+# 等待梯写死于契约、不随本值变:60s 起跳、×2 递增、封顶 15min;额外等待合计恰
+# 30 分钟(1800s)+ 各次尝试时长。同波失败按检出顺序错峰重派(第 i 个加 i×30s)。
+# 手改本文件即可(无 /xcheck-setup 模式)。
+night_retry_max = 5
 
 [agents.claude]
 installed_check = "claude"
