@@ -23,7 +23,7 @@ xcheck 是一组全局 [Claude Code](https://code.claude.com/) skill,把本机�
 
 ### 0.21.0 的分期范围
 
-[批准计划](docs/superpowers/plans/2026-09-19-xcheck-review-convergence-and-portability.md)第一、二批已实现保真共识、`review_schema = 2` 决策/问题账本、限定复审、局部暂停及 `--auto-review`。**0.22 精简重构**:三批功能经盲评修订定型——账本塌缩(字段字典单源)、**接管检出**替代 worktree(隔离是操作者的选择,ADR 0005)、**不自动开PR**(交付止于已推分支+晨报一键compare链接,ADR 0006)、**事件驱动并行实施**(就绪集调度,编辑并行提交串行,ADR 0007)、信任模型三档定界(ADR 0004,`material=external` 失败关闭)。旧协议链一律拒绝续跑+提示新开。**0.23**:并发帽罩实施+票级评审、`--lanes`/`/xcheck-setup lanes` 直设、默认3(ADR 0008)。
+[批准计划](docs/superpowers/plans/2026-09-19-xcheck-review-convergence-and-portability.md)第一、二批已实现保真共识、`review_schema = 2` 决策/问题账本、限定复审、局部暂停及 `--auto-review`。**0.22 精简重构**:三批功能经盲评修订定型——账本塌缩(字段字典单源)、**接管检出**替代 worktree(隔离是操作者的选择,ADR 0005)、**不自动开PR**(交付止于已推分支+晨报一键compare链接,ADR 0006)、**事件驱动并行实施**(就绪集调度,编辑并行提交串行,ADR 0007)、信任模型三档定界(ADR 0004,`material=external` 失败关闭)。旧协议链一律拒绝续跑+提示新开。**0.23**:并发帽罩实施+票级评审、`--lanes`/`/xcheck-setup lanes` 直设、默认3(ADR 0008)。**0.24**:夜链派发单元(实施/票级评审/终局评审)失败从"立即 paused"改为**有界重试**——先还原再进递增等待梯(60s 起步、×2、封顶 15 分钟)自动重派,次数由 `night_retry_max` 控制(默认 5,0=关闭),耗尽才 paused(ADR 0009)。
 
 配置分离与真正权限隔离**尚未实现**。完整[设计蓝图](docs/superpowers/specs/2026-09-19-xcheck-review-convergence-and-portability-design.md)与[0.22精简重构设计](docs/superpowers/specs/2026-09-19-xcheck-0.22-lean-pipeline-redesign.md)不是已完成功能表。当前 CLI 仍靠提示词要求只读指定材料,**不是强制访问隔离,也不是全库取证**;接管检出只约束提交位置,不隔离文件读取、网络或插件(敌意环境配置出范围,触发条件见 ADR 0004)。diag任何入口都不实施;auto-review诊断不建NIGHT、不通知。
 
