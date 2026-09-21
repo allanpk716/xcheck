@@ -4,7 +4,8 @@
 # 跑法: bash xcheck/tests/run-agent.test.sh   (总耗时 ~15s)
 # 覆盖:arg/stdin 两模式、超时击杀、--timeout 覆盖、挂起击杀、失败退出码、
 #       未知 agent、空 prompt、缺 prompt、反斜杠路径、带空格目录、特殊字符
-#       prompt(引号/$/反引号)、CLI 不在 PATH、残留清理、(msys)进程树击杀。
+#       prompt(引号/$/反引号)、CLI 不在 PATH、残留清理、(msys)进程树击杀、
+#       两层配置合并(0.25,ADR 0010:个人层 defaults/per-agent/新登记/run_cmd 覆盖)。
 
 set -uo pipefail
 
@@ -84,6 +85,9 @@ EOF
 : > "$TMP/empty.txt"
 
 TOML="$TMP/test-agents.toml"
+# 个人层隔离(0.25,ADR 0010):全局指到不存在路径 = 强制关闭,防止本机真实个人层
+# 泄漏进 fixture;两层合并用例(14~17)按需覆盖为受控 fixture。
+export XCHECK_PERSONAL_TOML="$TMP/personal-absent.toml"
 D="$TMP/sp ace"                       # 产物目录(带空格,顺带验证路径引用)
 code() { cat "$D/$1.exitcode" 2>/dev/null; }
 
@@ -170,6 +174,56 @@ if [[ -f /proc/self/winpid ]]; then
 else
   echo "== 13. 进程树击杀:非 msys,跳过 =="
 fi
+
+echo "== 14. 两层合并:个人层 [defaults].timeout_sec 覆盖模板 =="
+cat > "$TMP/personal.toml" <<'EOF'
+[defaults]
+timeout_sec = 2
+EOF
+XCHECK_POLL_SEC=1 XCHECK_PERSONAL_TOML="$TMP/personal.toml" PATH="$STUBS:$PATH" bash "$RUNNER" stubfreeze "$D/prompt-special.txt" "$TOML"; SC=$?
+assert_eq "个人层默认超时生效记 124" "$(code stubfreeze)" "124"
+assert_contains "用的是个人层值" "$D/stubfreeze.run.log" '>= 2s'
+assert_contains "run.log 记两层来源" "$D/stubfreeze.run.log" 'personal='
+rm -f "$TMP/personal.toml"
+
+echo "== 15. 个人层 per-agent timeout_sec 覆盖模板(4s→2s)=="
+cat > "$TMP/personal.toml" <<'EOF'
+[agents.stubslow]
+timeout_sec = 2
+EOF
+XCHECK_POLL_SEC=1 XCHECK_PERSONAL_TOML="$TMP/personal.toml" PATH="$STUBS:$PATH" bash "$RUNNER" stubslow "$D/prompt-special.txt" "$TOML"; SC=$?
+assert_eq "覆盖后仍记 124" "$(code stubslow)" "124"
+assert_contains "个人层 2s 覆盖模板 4s" "$D/stubslow.run.log" '>= 2s'
+rm -f "$TMP/personal.toml"
+
+echo "== 16. 个人层登记模板没有的新 agent =="
+cat > "$TMP/personal.toml" <<'EOF'
+[agents.stubextra]
+installed_check = "stub-ok"
+run_cmd = "stub-ok -p"
+input_mode = "arg"
+EOF
+XCHECK_POLL_SEC=1 XCHECK_PERSONAL_TOML="$TMP/personal.toml" PATH="$STUBS:$PATH" bash "$RUNNER" stubextra "$D/prompt-special.txt" "$TOML"; SC=$?
+assert_eq "个人层新 agent 跑通" "$(code stubextra)" "0"
+assert_contains "走的是个人层 run_cmd" "$D/stubextra.raw.stdout" 'ARGS:'
+rm -f "$TMP/personal.toml"
+
+echo "== 17. 个人层覆盖 run_cmd/input_mode(同名字段后读覆盖)=="
+cat > "$TMP/personal.toml" <<'EOF'
+[agents.stubcat]
+run_cmd = "stub-ok -p"
+input_mode = "arg"
+EOF
+XCHECK_POLL_SEC=1 XCHECK_PERSONAL_TOML="$TMP/personal.toml" PATH="$STUBS:$PATH" bash "$RUNNER" stubcat "$D/prompt-special.txt" "$TOML"; SC=$?
+assert_eq "覆盖后跑通" "$(code stubcat)" "0"
+assert_contains "改走 arg 模式" "$D/stubcat.raw.stdout" 'ARGS:'
+if grep -qF 'STDIN:' "$D/stubcat.raw.stdout" 2>/dev/null; then bad "仍是 stdin 模式 —— 个人层未覆盖 input_mode"; else ok "input_mode 已被个人层覆盖"; fi
+rm -f "$TMP/personal.toml"
+
+echo "== 18. 个人层缺席 = 纯模板(layers 记 none)=="
+XCHECK_POLL_SEC=1 PATH="$STUBS:$PATH" bash "$RUNNER" stubok "$D/prompt-special.txt" "$TOML"; SC=$?
+assert_eq "无个人层照常" "$(code stubok)" "0"
+assert_contains "layers 记 personal=none" "$D/stubok.run.log" 'personal=none'
 
 echo
 echo "结果: $PASS pass, $FAIL fail"

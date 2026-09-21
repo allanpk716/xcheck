@@ -34,11 +34,11 @@
 
 ## 第 1 步:检测 + 定选集 + 初始化 PROGRESS
 
-1. 跑 `bash ~/.claude/skills/xcheck/lib/detect.sh`。stdout = 已装 agent(每行 `name \t installed_check \t installed`);stderr = 已登记未装。**已装 < 2** → 告诉用户太少(异构至少 2 家、≥1 非 claude),建议 `/xcheck-setup`,**停**。
+1. 跑 `bash ~/.claude/skills/xcheck/lib/detect.sh`。stdout = 已装 agent(每行 `name \t installed_check \t installed`);stderr = 已登记未装。登记表 = 模板 agents.toml + 个人层 personal.toml 两层并集(0.25,ADR 0010)。**已装 < 2** → 告诉用户太少(异构至少 2 家、≥1 非 claude),建议 `/xcheck-setup`,**停**。
 2. **初始化 PROGRESS.md**(摄入没建目录时才建):`<cwd>/.xcheck/<YYYYMMDD-HHMMSS>/`(本地时间),写头部interaction/target(所有mode均写;格式见文末;`selected`/`source` 先留待定,本步与 3.1 步补写)。
 3. **定候选集**(一条道,无弹窗):
    - `OVERRIDE_AGENTS` 非空(壳已校验名字)→ 候选 = 它。
-   - 否则读 `~/.claude/skills/xcheck/agents.toml` 的 `[defaults].default_agents`:存在且非空 → 候选 = 它;坏名(不在 `[agents.*]`,toml 被手改坏)**防御剔除**后用剩余;剔除后空 → 报错停。
+   - 否则取默认集:个人层 `~/.claude/xcheck/personal.toml` 的 `[defaults].default_agents` 覆盖模板 `agents.toml` 同名键(0.25,ADR 0010);两层都缺该键才视为未设。存在且非空 → 候选 = 它;坏名(不在两层任一 `[agents.*]`,配置被手改坏)**防御剔除**后用剩余;剔除后空 → 报错停。
    - 都没有 → **报错停住**:"未设默认集也没敲 --agents。先跑 `/xcheck-setup default <a,b,c>` 设默认集,再 /xcheck。"**不弹多选。**
 4. 取 `SELECTED = 候选 ∩ INSTALLED`:缺员 → 用交集,输出注明"默认集里 <缺的名> 当前未装/未登录,本轮用 <交集>";交集 < 2 家 → 停。
 5. 同构(全 claude 或 <2 家)→ **不拦**,第 9 步 SUMMARY 顶部标注 "⚠️ 本次为同构,异构价值未体现"。
@@ -56,7 +56,7 @@ printf '读文件 <cwd>/.xcheck/smoke.txt(绝对路径、正斜杠),原样回复
 ```
 bash ~/.claude/skills/xcheck/lib/run-agent.sh <name> <cwd>/.xcheck/smoke-prompt.txt --timeout <预算>
 ```
-   全部启动后逐家 TaskOutput(block=true,timeout=600000)阻塞等齐——wall = max(各通道) 而非 sum。**预算 = 该家在 agents.toml 的 `smoke_timeout_sec`,缺省 60**。
+   全部启动后逐家 TaskOutput(block=true,timeout=600000)阻塞等齐——wall = max(各通道) 而非 sum。**预算 = 该家的 `smoke_timeout_sec`(个人层覆盖模板,缺省 60)**。
 3. 判定(产物落 `.xcheck/` 根):`.xcheck/<name>.exitcode` 为 **0** 且 `.xcheck/<name>.raw.stdout` 含 `西瓜47` → 可用(CLI 活性 ✓ + 读文件能力 ✓ + 传参机制 ✓)。
    - **124 超时 → 自动原样重跑一次**(同预算,每家最多一次;多轮调用通道有 30s~120s 级方差,一次超时不足以判死——2026-09-17 四次实证均为"慢非死")。重跑 exit 0 且含 `西瓜47` → 可用,failed.md 里记一行"首跑超时,重试通过"备查。
    - 重跑仍超时,或 **65/66/67 脚本层故障、非零 CLI 码(401 欠费/未登录/损坏)、exit 0 但没有 `西瓜47`(非交互读不了文件)** → 剔除,告知用户"<name> 预检失败:<exitcode + run.log/stderr 末行>,本轮跳过",落 `<cwd>/.xcheck/<name>.failed.md`(两次结果都记)。
@@ -174,7 +174,7 @@ RESULT_SHAPE = <diag:根因/证据/置信度/建议 | review:裁决/逐条问题
 1. 主会话按D约束和F证据亲写修订稿,仅处理已授权、可修复的阻断;一般建议不自动加入。用户决策冲突没有新明确回答则保留,不能替用户改变产品行为。
 2. 修订基于本轮proposal快照。TARGET=implementation时只写本轮 `.xcheck/<ts>/proposal.rev<m>.md`,original_source仅追溯不写入;TARGET=review且source是文件时同目录写新 `<原名>.rev<m>.md`;inline写 `<ts>/proposal.rev<m>.md`。原稿正文不动。**修订版正文遵守 3.1 自代入陷阱纪律(中性陈述,不点名 agent)**。源文件被外部改过→正常模式确认对象,无人值守暂停该修订;不能静默改用新基线。已有rev先查看,不得覆盖来源不明或用户修改的稿。
 3. 新建 `<ts2>/PROGRESS.md`:review_schema=2、mode=review、prev=当前ts、round=m、source=新稿(完整night保持inline并以新稿建子环proposal),继承interaction/target、original_source与auto_revisions_used(本次自动修订则加1);**`selected = <旧环 selected ∩ 当前 INSTALLED>`(评审面板钉死——裁决可比性与F来源连续性依赖同一面板;已卸载的用交集并注明,不弹窗)**。复制decisions和完整FINDINGS历史,写 `re-review-context.md`(上一环全部F、D约束、实际差异、逐条修复理由)。新proposal落盘后勾intake,当前环记录 `next=<ts2>` 并勾gate。相同恢复遇已有next先验证复用,不重复建环。
-4. 当前ts切到新环,重跑1~9但第3步用re-review模板,不是完整重新开题。detect照跑;冒烟可跳过仅当该家最近一次真实smoke成功、agents.toml指纹一致、上一环exit=0且有summary;否则重冒烟。collect仍有不足两家停止闸门。
+4. 当前ts切到新环,重跑1~9但第3步用re-review模板,不是完整重新开题。detect照跑;冒烟可跳过仅当该家最近一次真实smoke成功、**两层配置(模板 agents.toml + 个人层 personal.toml)合并指纹一致**、上一环exit=0且有summary;否则重冒烟。collect仍有不足两家停止闸门。
 5. 复审须逐项核实原活动约束解除条件,不因评审员没再提而关闭。新重大缺陷/回归可新增约束,普通建议只留底。第9步统一决定收敛/暂停/再修;无人值守最多一次自动修订。修订差异或必要基线缺失→停止报告状态不一致。
 
 ## 第 11 步:夜间接续(TARGET = implementation 且 INTERACTION = unattended,终态收尾已完成)
@@ -206,11 +206,11 @@ RESULT_SHAPE = <diag:根因/证据/置信度/建议 | review:裁决/逐条问题
    - 票被gitignore时最小放行(先看文件后精确改),`git commit --only <票目录+该忽略规则> --no-verify`;记录提交OID后尝试 publish。
    完成:NIGHT 头部 `tickets` 字段填目录,勾 `plan`(注记"spec + N 票")。
 6. **并行实施(impl,事件驱动就绪集;编辑并行、提交串行)**:推通知("spec 固化 + 拆票完成:N 张票。开始并行实施(并发帽 ≤N 道,实施+票级评审合计),每完成一票推远端保存进度。")→ **NIGHT 记 `lanes = <N>(来源:--lanes|默认)`**:
-   - **并发帽(ADR 0008)**:`LANES = --lanes 旗标 > [defaults].night_parallel_lanes(默认 3,/xcheck-setup lanes 设置)`,罩**实施泳道 + 票级评审**的同时在跑合计数(冒烟、评审段 fan-out 不在此帽);终局全分支 review 同占一位。续跑 `--lanes` 改道允许,只影响后续派发,NIGHT 追记一行(原值→新值)。
+   - **并发帽(ADR 0008)**:`LANES = --lanes 旗标 > night_parallel_lanes(模板 [defaults] 默认 3;个人层同名键覆盖,/xcheck-setup lanes 设置)`,罩**实施泳道 + 票级评审**的同时在跑合计数(冒烟、评审段 fan-out 不在此帽);终局全分支 review 同占一位。续跑 `--lanes` 改道允许,只影响后续派发,NIGHT 追记一行(原值→新值)。
    - **就绪集判定**(任一票落地事件触发重算):票自身无活动约束 ∧ 依赖票全 complete ∧ **涉及路径与"在跑票 ∪ 重试等待中票 ∪ paused未清理票 ∪ committed-unreviewed票 ∪ rework票"的路径两两不相交(互斥由四态扩为五态;重试等待中票=已还原未重派,视同在跑)** ∧ 与脏区底账(每次start刷新的 porcelain 全量,含 untracked)不相交——与脏区相交的票记 `paused(与操作者未提交改动重叠,防捎带/防冲突)`;实施位有空位(在跑实施+评审合计 < LANES)才派出。**路径比较先规范化**:统一正斜杠、去 `./`、目录包含语义=`dir/` 前缀,大小写按平台。
    - **派单包**:票文件全文 + 该票涉及路径下的文件内容内联(预算上限,超限给关键文件全文+其余大纲)+ spec 路径 + 前票已定接口与裁定 + 验收标准;派发时对涉及路径做派发快照(hash 入账本,作文件级归因辅助)。派单模板前缀保持稳定(保前缀缓存)。
    - **泳道纪律**:泳道=夜链并发工作位,分**实施位**与**评审位**(ADR 0008 泛化;两者合计不超 LANES)。实施位 agent **只改文件、跑票内局部验证,严禁 `git add`/`git commit`/`git push`**(提交权只在主会话);要求 TDD(先写失败测试跑红→最小实现跑绿);模型档位:单文件机械票便宜档,跨文件/含设计判断票中档,每波最难/最前置票给最强档;回报四态(DONE / DONE_WITH_CONCERNS / NEEDS_CONTEXT / Blocked)是正常回报,不触发重试;落者异常终止/回报缺失/超时进**有界重试**(下条),耗尽才记 paused。
-   - **有界重试(单元级,ADR 0009)**:覆盖实施位、票级评审位、终局全分支 review 三类派发单元(均为主会话子代理),每派发单元一条独立梯、各自计次。**触发**=派发单元异常终止/回报缺失/超时;四态回报(DONE/DONE_WITH_CONCERNS/NEEDS_CONTEXT/Blocked)不触发(NEEDS_CONTEXT 走既有补材料通道)。**重派基线**:失败检出→可归票校验→立即现行三步还原(`git reset`→`git checkout <BASE>`→`git clean -fd`,含越界残留,见"失败票路径还原")→还原完成才进等待;还原不可归票/还原失败→不进梯,走既有"暂停清理记 waiting"路径;票级评审/终局 review 只读,不涉工作区还原。**重试梯**:60s→2min→4min→8min→15min(封顶),起跳/翻倍/封顶写死;每单元最多 `night_retry_max` 次(agents.toml `[defaults]`,默认 5;0=关闭,失败即 paused 回落现行);时间口径:额外等待合计恰 30 分钟(1800s)+ Σ各次尝试时长。**错峰**:"同一波"=同一次调度循环内检出的失败集合;波内第 i 个(i 从 0 起)等待满后加 i×30s;续跑时同一时点到期的等待单元按各自首行检出序号升序重赋 i(从 0 起)。**占位**:重试中单元占住自己的实施位/评审位,不回填、不进就绪集排队;等待期其他泳道照常,已落地票照常提交。**账本**(不新增票状态,写入 NIGHT):首行在还原完成后落(只读单元无还原,检出即落)——`票 NN impl retry 0/N(<原因>,已还原,检出序号=m)` / `票 NN review retry 0/N(<原因>,检出序号=m)` / `终局review retry 0/N(<原因>,检出序号=m)`;检出序号 m=本夜第 m 个失败检出,全阶段统一递增,仅随首行落盘,终身排序键;此后每次重试在**实际派发时**追记 `… retry k/N(<原因>)`,k≥1 行沿用本单元首行 m;断链重建=整档重等(按已耗 k 取下一档整档重等,不折算档内进度),计数从追记行重建不重置;票落定且实施侧重试过(k>0)→票行尾注 `retries=k`(只记实施位);重试耗尽→`paused(重试耗尽:N×失败,末次原因,阶段=<impl|review>)`;终局评审耗尽→既有终局阻断语义 `waiting(终局评审重试耗尽,…)`,finish 不勾。**明确不做**:全局重试预算、独立全局冷却、自动升降 lanes、帽外段(冒烟/评审 fan-out)重试。**已知取舍**:链崩在"失败发生→还原完成落盘"之间该次失败未入账,每次此类崩溃至多多一次尝试,有界性不破。
+   - **有界重试(单元级,ADR 0009)**:覆盖实施位、票级评审位、终局全分支 review 三类派发单元(均为主会话子代理),每派发单元一条独立梯、各自计次。**触发**=派发单元异常终止/回报缺失/超时;四态回报(DONE/DONE_WITH_CONCERNS/NEEDS_CONTEXT/Blocked)不触发(NEEDS_CONTEXT 走既有补材料通道)。**重派基线**:失败检出→可归票校验→立即现行三步还原(`git reset`→`git checkout <BASE>`→`git clean -fd`,含越界残留,见"失败票路径还原")→还原完成才进等待;还原不可归票/还原失败→不进梯,走既有"暂停清理记 waiting"路径;票级评审/终局 review 只读,不涉工作区还原。**重试梯**:60s→2min→4min→8min→15min(封顶),起跳/翻倍/封顶写死;每单元最多 `night_retry_max` 次(模板 agents.toml `[defaults]` 默认 5,个人层同名键覆盖;0=关闭,失败即 paused 回落现行);时间口径:额外等待合计恰 30 分钟(1800s)+ Σ各次尝试时长。**错峰**:"同一波"=同一次调度循环内检出的失败集合;波内第 i 个(i 从 0 起)等待满后加 i×30s;续跑时同一时点到期的等待单元按各自首行检出序号升序重赋 i(从 0 起)。**占位**:重试中单元占住自己的实施位/评审位,不回填、不进就绪集排队;等待期其他泳道照常,已落地票照常提交。**账本**(不新增票状态,写入 NIGHT):首行在还原完成后落(只读单元无还原,检出即落)——`票 NN impl retry 0/N(<原因>,已还原,检出序号=m)` / `票 NN review retry 0/N(<原因>,检出序号=m)` / `终局review retry 0/N(<原因>,检出序号=m)`;检出序号 m=本夜第 m 个失败检出,全阶段统一递增,仅随首行落盘,终身排序键;此后每次重试在**实际派发时**追记 `… retry k/N(<原因>)`,k≥1 行沿用本单元首行 m;断链重建=整档重等(按已耗 k 取下一档整档重等,不折算档内进度),计数从追记行重建不重置;票落定且实施侧重试过(k>0)→票行尾注 `retries=k`(只记实施位);重试耗尽→`paused(重试耗尽:N×失败,末次原因,阶段=<impl|review>)`;终局评审耗尽→既有终局阻断语义 `waiting(终局评审重试耗尽,…)`,finish 不勾。**明确不做**:全局重试预算、独立全局冷却、自动升降 lanes、帽外段(冒烟/评审 fan-out)重试。**已知取舍**:链崩在"失败发生→还原完成落盘"之间该次失败未入账,每次此类崩溃至多多一次尝试,有界性不破。
    - **票落地(主会话,串行)**:验收 → 提交前校验:`git status --porcelain` 中该票产生(相对派发快照)的改动文件集 ⊆ 其涉及路径(越界改动不提交、留工作区、记越界清单,来源=rev1 全量比对);与失败泳道越界残留清单比对,命中暂停提交报来源不明 → `git commit --only <涉及路径> --no-verify`(绝不 force)→ NIGHT 记 `票 NN: committed(oid=..., rounds=...)`(rounds=该泳道 LLM 轮数,供 live 门禁统计)→ **`night-git.sh publish <repo> <branch> <remote_url>`**(每票即推,防全损;失败降级记账不挂链,下票连着重推)。
    - **票级评审**:提交后即请求出发(不等全队),受并发帽约束——评审位满时排队(票保持 committed、review 未过,**不新增台账状态**),有空位时**评审优先补入**(先解锁落地票、放行下游依赖,再派新实施);输入=票文件+该票 BASE..HEAD diff+验收标准(只喂票 diff 不喂全仓);不通过 → 票回 `rework`:**追加修复提交**(不 revert 不 force),scoped re-review 上限 2 轮,超限 `paused(评审发现:...)`;通过 → `票 NN: complete(oid=..., tests=<scoped验证证据>, review=<评审证据>)`。**committed 崩在评审前**:恢复优先续做评审(输入=票BASE..HEAD);不可续 → `paused(committed-unreviewed,<oid>)`,提交保留,晨报列明。已提交≠已验收,两态分开记账。
    - **失败票路径还原**(实施单元失败检出、进重试等待前立即执行;重试耗尽记 paused 时不再重复还原):先确认当前票路径差异仍可归票(对派发快照;不可归票→暂停清理记waiting,不进梯),再三步——`git reset -- <票路径>`(清 index)→ `git checkout <BASE> -- <票路径>`(还原 tracked;pathspec 无匹配跳过)→ `git clean -fd -- <票路径>`(删新增文件与目录);连带处置该泳道越界残留;还原完成才落重试首行、进等待(见有界重试)。账本无 complete 提交但路径有残留的票,恢复时同法清理后再重算就绪集。
@@ -254,7 +254,7 @@ round = 0                     # 修订轮次;复审环从 1 起
 prev = -                      # 复审链上一环 ts;首轮 -
 next = -                      # 已建复审环时填目标ts
 auto_revisions_used = 0       # 原生首环0;不明写unknown并禁自动再修
-smoke_cfg = <sha256>          # 冒烟通过时 agents.toml 的 sha256 摘要;未冒烟不记
+smoke_cfg = <sha256>          # 冒烟通过时两层配置(agents.toml+personal.toml 合并)的 sha256 摘要;未冒烟不记
 original_source = <原始文件或inline> # 只追溯,night不得向它写入
 
 ## 阶段(完成即打勾)
@@ -330,7 +330,7 @@ note = -                       # 可选注记(如 未接下游(推倒重来))
 | source / original_source | PROGRESS | 绝对路径 \| inline | 摄入 | source=本轮对象;original_source只追溯 |
 | round / prev / next | PROGRESS | 数字 / ts / ts | 建账/建环 | 链式 |
 | auto_revisions_used | PROGRESS | 数字 \| unknown | 建账;自动修订+1 | 继承;unknown禁自动再修 |
-| smoke_cfg | PROGRESS | sha256 | 冒烟通过 | 复审环判跳冒烟用 |
+| smoke_cfg | PROGRESS | sha256(两层配置合并) | 冒烟通过 | 复审环判跳冒烟用 |
 | start_oid | NIGHT | 完整40/64位OID | 夜链接管前 | 每次start核对 |
 | branch / pr_base | NIGHT | 分支名 | 夜链接管前 | 继承 |
 | remote_url | NIGHT | 脱敏URL \| - | 夜链接管前 | 继承;含凭据串禁止入账 |

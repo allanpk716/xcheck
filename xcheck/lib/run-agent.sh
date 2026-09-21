@@ -7,10 +7,14 @@
 #
 # 用法:
 #   bash run-agent.sh <agent> <prompt_file> [--timeout N] [agents.toml]
-#     <agent>        agents.toml 里 [agents.<name>] 的 key
+#     <agent>        登记表里 [agents.<name>] 的 key(模板或个人层任一)
 #     <prompt_file>  指令层 prompt 文件(绝对路径;反斜杠自动转正斜杠)
 #     --timeout N    覆盖 toml 超时(冒烟用短值);不传取 per-agent > [defaults]
-#     [agents.toml]  可选;缺省读脚本同级 ../agents.toml(与 detect.sh 同约定,测试用)
+#     [agents.toml]  可选;缺省读脚本同级 ../agents.toml(模板层,测试用)
+#
+# 配置两层(0.25,ADR 0010):模板 agents.toml + 个人层 ~/.claude/xcheck/personal.toml
+#   (XCHECK_PERSONAL_TOML 可覆盖个人层路径;指到不存在的路径 = 强制关闭)。
+#   同名字段个人层覆盖模板;个人层缺席 = 纯模板。
 #
 # 产物(全落在 prompt_file 同目录):
 #   <agent>.raw.stdout / .raw.stderr  CLI 的 stdout / stderr
@@ -102,43 +106,53 @@ if [[ "${PBYTES:-0}" -eq 0 ]]; then
 fi
 log "预检 ok: prompt ${PBYTES} bytes"
 
-# ---- 解析 agents.toml(轻量 bash 解析;容忍 CRLF 与行内 # 注释) ----
+# ---- 解析配置两层:模板 agents.toml 先读、个人层 personal.toml 后读 ----
+# 轻量 bash 解析;容忍 CRLF 与行内 # 注释。同名字段后读覆盖先读(个人层覆盖模板);
+# 个人层还能登记模板没有的新 agent(run_cmd 等字段只设不覆盖模板缺席项)。
+PERSONAL="${XCHECK_PERSONAL_TOML-$HOME/.claude/xcheck/personal.toml}"
+[[ -n "$PERSONAL" && -f "$PERSONAL" ]] || PERSONAL=""
+
 run_cmd=""; input_mode=""; agent_to=""; def_to=""
 cur=""
-while IFS= read -r line || [[ -n "$line" ]]; do
-  line="${line%$'\r'}"
-  [[ "$line" =~ ^[[:space:]]*# ]] && continue
-  [[ "$line" =~ ^[[:space:]]*$ ]] && continue
-  if [[ "$line" =~ ^[[:space:]]*\[.*\] ]]; then
-    cur="${line%%\]*}"; cur="${cur#\[}"
-    continue
-  fi
-  [[ "$line" == *"="* ]] || continue
-  key="${line%%=*}"; key="${key//[[:space:]]/}"
-  val="${line#*=}"
-  if [[ "$val" == *\"* ]]; then          # 带引号值:取到闭引号(容忍行内注释)
-    val="${val#*\"}"; val="${val%%\"*}"
-  else                                    # 裸值:截掉行内注释
-    val="${val%%#*}"
-    val="${val#"${val%%[![:space:]]*}"}"; val="${val%"${val##*[![:space:]]}"}"
-  fi
-  case "$cur" in
-    defaults)
-      [[ "$key" == "timeout_sec" ]] && def_to="$val"
-      ;;
-    "agents.$AGENT")
-      case "$key" in
-        run_cmd)     run_cmd="$val" ;;
-        input_mode)  input_mode="$val" ;;
-        timeout_sec) agent_to="$val" ;;
-      esac
-      ;;
-  esac
-done < "$TOML"
+parse_layer() {
+  local line key val
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line%$'\r'}"
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    [[ "$line" =~ ^[[:space:]]*$ ]] && continue
+    if [[ "$line" =~ ^[[:space:]]*\[.*\] ]]; then
+      cur="${line%%\]*}"; cur="${cur#\[}"
+      continue
+    fi
+    [[ "$line" == *"="* ]] || continue
+    key="${line%%=*}"; key="${key//[[:space:]]/}"
+    val="${line#*=}"
+    if [[ "$val" == *\"* ]]; then          # 带引号值:取到闭引号(容忍行内注释)
+      val="${val#*\"}"; val="${val%%\"*}"
+    else                                    # 裸值:截掉行内注释
+      val="${val%%#*}"
+      val="${val#"${val%%[![:space:]]*}"}"; val="${val%"${val##*[![:space:]]}"}"
+    fi
+    case "$cur" in
+      defaults)
+        [[ "$key" == "timeout_sec" ]] && def_to="$val"
+        ;;
+      "agents.$AGENT")
+        case "$key" in
+          run_cmd)     run_cmd="$val" ;;
+          input_mode)  input_mode="$val" ;;
+          timeout_sec) agent_to="$val" ;;
+        esac
+        ;;
+    esac
+  done < "$1"
+}
+parse_layer "$TOML"
+[[ -n "$PERSONAL" ]] && parse_layer "$PERSONAL"
 
 if [[ -z "$run_cmd" ]]; then
-  log "agent 未登记或 run_cmd 缺失: $AGENT (toml=$TOML)"
-  echo "ERROR: agent '$AGENT' not registered (no run_cmd) in $TOML" >&2
+  log "agent 未登记或 run_cmd 缺失: $AGENT (layers: $TOML${PERSONAL:+ + $PERSONAL})"
+  echo "ERROR: agent '$AGENT' not registered (no run_cmd) in $TOML${PERSONAL:+ or $PERSONAL}" >&2
   finish 66
 fi
 if [[ "$input_mode" != "arg" && "$input_mode" != "stdin" ]]; then
@@ -154,7 +168,7 @@ if ! [[ "$TIMEOUT" =~ ^[0-9]+$ ]] || [[ "$TIMEOUT" -eq 0 ]]; then
   echo "ERROR: bad timeout '$TIMEOUT'" >&2
   finish 66
 fi
-log "config: run_cmd='$run_cmd' input_mode=$input_mode timeout=${TIMEOUT}s"
+log "config: run_cmd='$run_cmd' input_mode=$input_mode timeout=${TIMEOUT}s layers: template=$TOML personal=${PERSONAL:-none}"
 
 # ---- CLI 可用性(消灭 command-not-found 静默态) ----
 read -r -a CMDPARTS <<< "$run_cmd"

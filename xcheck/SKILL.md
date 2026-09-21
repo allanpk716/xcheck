@@ -18,9 +18,9 @@ argument-hint: [--auto-review | --night] [--agents a,b,c] [--lanes N] [<问题�
 
 新链用 `bash ~/.claude/skills/xcheck/lib/run-mode.sh <MODE_REQUEST>` 解析,按键读取 stdout 的 `interaction` / `target` 赋给 `INTERACTION` / `TARGET`;不得source/eval脚本输出或账本内容。**入口为旗标直选(0.22)**:无旗标新链 = 正常交互审核(default),不再弹三选一入口问;想无人值守请敲 `--auto-review` 或 `--night`。恢复必须用三参数形式(request + 盘上两字段),不能拿单参数新链结果覆盖账本。
 
-若 `$ARGUMENTS` 含 `--agents`:其值 = 紧跟后**一个空白分隔 token**(纯逗号串,如 `codex,kimi`,不含空格)。缺值、值为空或下一个token以 `--` 开头 → **报缺参并停止**。把 `--agents <token>` 从 `$ARGUMENTS` 删掉,剩余文本 = 待分类内容。设 `OVERRIDE_AGENTS = <拆成的名字列表>`;空名字或名字不在 agents.toml 的 `[agents.<name>]` → **报错停住**,打印"名字 X 不在 agents.toml;可用 agent:<列出所有 [agents.*] key>"。参数校验使用原token顺序。
+若 `$ARGUMENTS` 含 `--agents`:其值 = 紧跟后**一个空白分隔 token**(纯逗号串,如 `codex,kimi`,不含空格)。缺值、值为空或下一个token以 `--` 开头 → **报缺参并停止**。把 `--agents <token>` 从 `$ARGUMENTS` 删掉,剩余文本 = 待分类内容。设 `OVERRIDE_AGENTS = <拆成的名字列表>`;空名字或名字不在两层登记表(模板 agents.toml + 个人层 `~/.claude/xcheck/personal.toml` 的 `[agents.<name>]`)→ **报错停住**,打印"名字 X 不在登记表;可用 agent:<列出两层所有 [agents.*] key>"。参数校验使用原token顺序。
 
-若 `$ARGUMENTS` 含 `--lanes`:其值 = 紧跟后**一个空白分隔 token**(整数 ≥1)。缺值、非整数或 <1 → **报缺参并停止**。**仅 `--night` 可携带**(`--auto-review` 或无模式旗标时出现 → **报错停住**:评审段没有泳道,防止误以为评审也会加速)。把 `--lanes <token>` 从 `$ARGUMENTS` 删掉,剩余文本 = 待分类内容。设 `OVERRIDE_LANES = <N>`;生效优先级 `--lanes > agents.toml [defaults].night_parallel_lanes`(默认 3;并发帽罩实施泳道+票级评审合计,ADR 0008)。**续跑夜链允许改道**:只影响后续派发,NIGHT 追记一行(原值→新值)。
+若 `$ARGUMENTS` 含 `--lanes`:其值 = 紧跟后**一个空白分隔 token**(整数 ≥1)。缺值、非整数或 <1 → **报缺参并停止**。**仅 `--night` 可携带**(`--auto-review` 或无模式旗标时出现 → **报错停住**:评审段没有泳道,防止误以为评审也会加速)。把 `--lanes <token>` 从 `$ARGUMENTS` 删掉,剩余文本 = 待分类内容。设 `OVERRIDE_LANES = <N>`;生效优先级 `--lanes > night_parallel_lanes`(模板 agents.toml [defaults] 默认 3,个人层同名键覆盖;并发帽罩实施泳道+票级评审合计,ADR 0008)。**续跑夜链允许改道**:只影响后续派发,NIGHT 追记一行(原值→新值)。
 
 ## 2. 查未完成链(弹窗 0)
 

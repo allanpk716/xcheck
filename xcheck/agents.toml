@@ -1,39 +1,49 @@
 # xcheck agent registry — how to call each local AI agent CLI non-interactively.
 # Values locked by Task 1 CLI smokes (see docs/cli-findings.md).
-# To add a new agent you installed: add an [agents.<name>] block below and run
-#   /xcheck-setup   (or just re-run lib/detect.sh to confirm detection).
+#
+# **分发模板层(0.25,ADR 0010)**:本文件随仓库分发/升级,承载五家已知 agent 的
+# 契约字段、实测坑注记与各家 key/端点配置速览;[defaults] 是出厂值。
+# **只许 Edit 精确匹配,禁止整文件 Write**(注释是事故实测注记)。
+# **个人层 `~/.claude/xcheck/personal.toml`**(仓库外,升级/分发不碰):你的个人
+# 覆盖与新 CLI 登记。同名字段个人层覆盖本文件;/xcheck-setup 的一切"写"都落个人层,
+# 手改也可以。无个人层 = 纯出厂配置,开箱即用(默认组 codex+pi+kimi)。
+# 新 CLI 登记:跑 /xcheck-setup add <name>(写个人层)。key/端点是各 CLI 自己主目录
+# 的配置,xcheck 永不经手(ADR 0010);各家配法见下方"配置速览"注记与
+# docs/cli-findings.md、docs/getting-started.md 第 4 步。
 #
 # 超时配置: xcheck 调用 agent 时给的总执行时限。注意: 这个值由搬运工通过
 # 「后台启动 + 轮询」兑现(见 lib/subagent-carrier.md 第 1 步) —— 不能用一次前台
 # Bash 调用直等,前台上限 600s,超时即掐断且孤儿进程输出会永久丢失(2026-08-14 codex 事故)。
-# 优先级: per-agent timeout_sec  > [defaults].timeout_sec。
-# 用 /xcheck-setup timeout [N|<agent> N] 查看/设置。
+# 优先级: per-agent timeout_sec  > [defaults].timeout_sec(同名时个人层覆盖模板)。
+# 用 /xcheck-setup timeout [N|<agent> N] 查看/设置(写个人层)。
 #
 # 默认 agent 集: 设了之后 /xcheck 直接拿这组跑,跳过每次勾选。
-# 字段 default_agents = ["claude", "codex", ...](名字须对得上下面 [agents.<name>] 的 key)。
-# 字段缺失/空 = 未设默认 → /xcheck 报错停住,提示先设默认集(出厂默认)。
-# 用 /xcheck-setup default [a,b,c | --clear] 查看/设置/清空。
+# 字段 default_agents = ["codex", "pi", ...](名字须对得上两层任一 [agents.<name>] 的 key)。
+# 本文件的值 = 出厂默认;个人层同名键覆盖。字段缺失/空 = 未设默认 → /xcheck 报错停住。
+# 用 /xcheck-setup default [a,b,c | --clear] 查看/设置/清空(写个人层;--clear 回落出厂组)。
 
 [defaults]
-# 所有 agent 的默认最大执行秒数。per-agent timeout_sec 覆盖此值。
+# 所有 agent 的默认最大执行秒数。per-agent timeout_sec 覆盖此值;个人层同名键再覆盖。
 timeout_sec = 2700
 # 默认 agent 集(可选)。设了 /xcheck 就跳过每次勾选直接用这组。
-# 出厂默认 codex + pi;要换就改下面这行(名字须对得上 [agents.<name>] 的 key)。详见顶部说明。
-default_agents = ["codex", "pi"]
+# 出厂默认 codex + pi + kimi(0.25,ADR 0010;kimi 未装时运行时取交集自动降级)。
+# 个人层同名键覆盖;换组用 /xcheck-setup default <a,b,c>(写个人层)。详见顶部说明。
+default_agents = ["codex", "pi", "kimi"]
 # 夜链并发帽(0.23,ADR 0008):实施泳道+票级评审合计的同时在跑上限(冒烟/评审段
 # fan-out 不在此帽)。429 前科(2026-09-19 十并行子代理集体阵亡)未消化前建议 ≤4;
 # ferryman 干净一夜(2026-09-19 11 票全落地)后默认 2→3。直接设置:
-# /xcheck-setup lanes N 改本值,或单晚旗标 /xcheck --night --lanes N
+# /xcheck-setup lanes N 写个人层本值,或单晚旗标 /xcheck --night --lanes N
 # (优先级 旗标 > 本值;N≥5 警告不拦)。
 night_parallel_lanes = 3
 # 夜链有界重试(0.24,ADR 0009):实施段派发单元(实施位/票级评审/终局 review)失败后的
 # 重试次数上限,每单元独立计,互不共享。0 = 关闭重试,失败即 paused(回落现行行为)。
 # 等待梯写死于契约、不随本值变:60s 起跳、×2 递增、封顶 15min;额外等待合计恰
 # 30 分钟(1800s)+ 各次尝试时长。同波失败按检出顺序错峰重派(第 i 个加 i×30s)。
-# 手改本文件即可(无 /xcheck-setup 模式)。
+# 改个人层(或本文件)即可(无 /xcheck-setup 模式)。
 night_retry_max = 5
 
 [agents.claude]
+# 配置速览:官方账号交互登录即可(`claude` 首跑按提示登录),无需手工 key。
 installed_check = "claude"
 run_cmd         = "claude -p"      # prompt passed as one quoted arg
 input_mode      = "arg"
@@ -41,6 +51,9 @@ needs_timeout   = false
 timeout_sec     = 2700
 
 [agents.codex]
+# 配置速览:标准做法 `codex` 交互登录(ChatGPT 账号,凭据落 ~/.codex/);替代做法
+# 手编 ~/.codex/config.toml 指自建代理(model_provider/model/base_url/wire_api/
+# experimental_bearer_token,集团网关即替换 base_url)。详见 docs/getting-started.md 第 4 步。
 installed_check = "codex"
 # --skip-git-repo-check: 2026-08-15 实测,工作目录不在 git 仓库内(或未加信任)时
 # codex exec 直接拒绝: "Not inside a trusted directory and --skip-git-repo-check
@@ -55,6 +68,9 @@ needs_timeout   = false
 timeout_sec     = 2700
 
 [agents.opencode]
+# 配置速览:编辑 ~/.config/opencode/opencode.json——provider 块(npm/apiKey/baseURL/
+# models)。我们用 GLM:普通端点 open.bigmodel.cn/api/paas/v4,key 从 open.bigmodel.cn
+# 控制台申请。详见 docs/getting-started.md 第 4 步。
 installed_check = "opencode"
 run_cmd         = "opencode run"   # no --format json: default formatted text (Task 1 decision)
 input_mode      = "arg"
@@ -62,6 +78,11 @@ needs_timeout   = true             # known to hang on input occasionally -> forc
 timeout_sec     = 2700
 
 [agents.pi]
+# 配置速览:两个文件——~/.pi/agent/settings.json(defaultProvider=bigmodel、
+# defaultModel)+ models.json(baseUrl=**coding 端点** open.bigmodel.cn/api/coding/paas/v4、
+# apiKey、模型 id/name/reasoning/contextWindow/maxTokens + compat 块 supportsDeveloperRole/
+# thinkingFormat/zaiToolStream)。coding 端点与普通端点是两条路径,别混;compat 块按
+# pi 当前文档核对。详见 docs/getting-started.md 第 4 步。
 installed_check = "pi"
 # 2026-09-17 根治(已实施):pi 原默认走 ccswitch 档(bigmodel anthropic 兼容端点),
 # 该端点当天四次间歇 >60s 挂起;已把 pi 全局默认切到 bigmodel coding 端点直连
@@ -79,6 +100,10 @@ timeout_sec     = 2700
 smoke_timeout_sec = 120
 
 [agents.kimi]
+# 配置速览:**非 npm 安装**(独立装在 ~/.kimi-code/,渠道以 Kimi Code 官方发布页为准);
+# ~/.kimi-code/config.toml 两段:default_model + [providers."managed:kimi-code"]
+# (base_url=api.kimi.com/coding/v1、api_key,kimi.com/Moonshot 开放平台申请)。该文件
+# 可能混有与本仓无关的 hooks(如 Orca),**不要整抄别机样本**。详见 getting-started 第 4 步。
 installed_check = "kimi"
 run_cmd         = "kimi -p"         # non-interactive print mode; prompt passed as single arg (Kimi Code CLI)
 input_mode      = "arg"
