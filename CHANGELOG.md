@@ -3,13 +3,29 @@
 All notable changes to `xcheck`. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 本文件记录 xcheck 的所有显著变更。
 
-## [Unreleased]
+## [0.25.0] - 2026-09-21
+
+**setup 收窄为纯配置器 + 配置两层分离**(grill-with-docs 设计访谈定型;决策:[ADR 0010](docs/adr/0010-setup-config-only-template-personal-split.md),取代 2026-08-13 default-agents 设计稿「个人配置随 git 仓库走」取舍)。动机:setup 复杂度调查坐实大头在「知识前置 + 逐家手填」——getting-started 第 4 步 key/端点配置占全文约 50% 且 xcheck 不接管、启用一家要手填 5 个机器契约字段、setup 验证与运行时冒烟双轨两套口径;用户定边界原则:**setup 只配置用哪些评审 agent,不检查可用性**——可用性归用户外部操作 + 运行时冒烟(唯一活性权威),防项目臃肿。
 
 ### Added / 新增
 
-- **上手指南 [docs/getting-started.md](docs/getting-started.md)**:安装+评审 agent 配置的完整剧本,**写给同事的 AI 执行**(人把文档交给 AI 照做,每步命令+验收)。五步:装 Claude Code(点名推荐安装器)→ clone+junction 装 xcheck → 按档位装评审 agent CLI(最小推荐 codex+pi / 全家桶五家;npm 包名实核,kimi 走官方渠道)→ 配 key/endpoint(本机实配脱敏样板,**"这边建议"框架**——AI 对照当时官方文档核实执行,不逐字照抄;集团网关留 base_url 替换口)→ `/xcheck-setup` 验收全绿+试跑。平台口径 Windows+Git Bash。
+- **配置两层(ADR 0010)**:模板层 `xcheck/agents.toml`(仓库内,随分发/升级;五家契约 + 实测坑注记 + 各家 key/端点**配置速览**收编)+ 个人层 `~/.claude/xcheck/personal.toml`(仓库外,升级/分发不碰;默认组/并发帽/重试/超时覆盖与新 CLI 登记);同名字段个人层覆盖模板,个人层缺席 = 纯出厂开箱即用。
+- **两层合并读取**:run-agent.sh(模板先/个人层后,后读覆盖;run.log 记两层来源)与 detect.sh(两层并集,同名覆盖 installed_check 保原位);`XCHECK_PERSONAL_TOML` 可覆盖/禁用个人层路径(测试隔离用);冒烟跳过指纹 `smoke_cfg` 改两层配置合并 sha256;flow/SKILL 选集、冒烟预算、`--agents` 校验、`--lanes` 优先级全部改两层口径。
+- run-agent.test.sh 两层合并断言 12 条(33→45;个人层全局隔离防本机泄漏)。
+- 上手指南 [docs/getting-started.md](docs/getting-started.md) 全新重写:写给同事的 AI 执行的五步剧本(装 Claude Code → clone+junction → 装评审 CLI → 配 key → 验收);**第 4 步砍半**(逐家完整配置样本 → 速查 + 权威指向模板「配置速览」注记与 cli-findings,-161 行);第 5 步验收改「/xcheck-setup 无参只读核对 + 真跑 /xcheck 看冒烟」;档位表删除,改一句话建议。
+- CONTEXT 新术语:分发模板、个人层、配置边界(均含 _Avoid_)。
 
-### Fixed / 修复(文档过时点清零)
+### Changed / 改进
+
+- **出厂默认组 codex+pi → codex+pi+kimi**(ADR 0010;kimi 未装时运行时取交集自动降级,不阻塞)。
+- **/xcheck-setup 重写为纯配置器(ADR 0010)**:无参 = 只读状态一览(两层登记表 + 来源标注、合并生效默认组/超时/帽/重试、坏名警示;零命令执行零探测);`add` 仅服务未知家 CLI(五字段引导不变,写个人层,登记完不试跑);`timeout`/`default`/`lanes` 读两层合并生效值、写个人层(有值行 Edit 精确替换/无则追加,模板层永不动);`default --clear` 改语义为**回落出厂组**(不是清空成未设)。
+- setup 侧验证整体删除:模式 A 的 marker 验证循环(`hello-from-*`)、逐家容噪规则、`/tmp/xcheck-verify-*` 与 detect 调用全删;可用性验收 = 真跑一轮 `/xcheck` 看冒烟预检(getting-started 第 5 步同步)。
+
+### Removed / 移除
+
+- 多档位预设(minimal/standard/full)机制:一个默认组 + `--agents` 单次换 + `default` 子命令永久改(ADR 0010「明确不做」)。
+
+### Fixed / 修复(文档过时点清零,与上手指南同批)
 
 - README:快速开始瘦身并链向上手指南;两处"收工自动开 PR"旧语义(0.18/ADR 0003 遗留)改为现行"不自动开 PR,晨报给 compare 链接"(ADR 0006);`/xcheck-setup` 子命令表补 `lanes` 行;删重复 run-mode.sh 树行;"4 种模式"→5;仓库树收入 getting-started。
 - docs/cli-findings.md:"三家"改口五家;**补 pi 实测条目**(2026-09-20,pi 0.74.2,bigmodel coding 端点,stdout 即回复);codex run_cmd 收现行旗标 `--skip-git-repo-check -s danger-full-access` 并加注脚(2026-08-15/09-06 两事故);版本口径更新至 2026-09-20。
@@ -17,11 +33,11 @@ All notable changes to `xcheck`. Format loosely follows [Keep a Changelog](https
 - xcheck/lib/subagent-carrier.md:泳道失败语义对齐 0.24 有界重试(ADR 0009),删"超时/失败记 paused 不拖队"旧句。
 - AGENTS.md:测试义务补 night-parallel 套件;文档同步义务挂 getting-started(安装/评审 agent 配置口径变化须同步)。
 - CONTEXT.md:新增「**评审 agent**」词条(_Avoid_:搬运工、审核者)。
-- xcheck/agents.toml:`default_agents` 注释"出厂不设"对齐实际出厂 codex+pi。
 
-### Scope / 边界
+### Scope / 本版边界
 
-- 纯文档与注释同步,无行为变更;回归 5 套件 **263 断言全绿**(run-agent 33/run-mode 28/review-contract 110/night-git 26/night-parallel 66)。`docs/diagrams/` 仍为 0.19 前快照(未跟踪、未重生成,另行处理)。
+- 两层合并/纯配置语义为静态契约断言 + stub 回归;**真实多机分发场景未实测**(本机出厂值与模板一致,无需生成个人层文件,属零迁移);可用性反馈延迟到首次真跑冒烟才暴露——用户明确接受(外部自理)。
+- 离线测试 5 套件 **275 断言全绿**(run-agent 45/night-parallel 66/review-contract 110/run-mode 28/night-git 26);不含模型语义与真实托管验证。`docs/diagrams/` 仍为 0.19 前快照(未跟踪、未重生成,另行处理)。
 
 ## [0.24.0] - 2026-09-20
 

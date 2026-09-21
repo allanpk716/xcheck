@@ -25,13 +25,13 @@ xcheck 是一组全局 [Claude Code](https://code.claude.com/) skill,把本机�
 
 [批准计划](docs/superpowers/plans/2026-09-19-xcheck-review-convergence-and-portability.md)第一、二批已实现保真共识、`review_schema = 2` 决策/问题账本、限定复审、局部暂停及 `--auto-review`。**0.22 精简重构**:三批功能经盲评修订定型——账本塌缩(字段字典单源)、**接管检出**替代 worktree(隔离是操作者的选择,ADR 0005)、**不自动开PR**(交付止于已推分支+晨报一键compare链接,ADR 0006)、**事件驱动并行实施**(就绪集调度,编辑并行提交串行,ADR 0007)、信任模型三档定界(ADR 0004,`material=external` 失败关闭)。旧协议链一律拒绝续跑+提示新开。**0.23**:并发帽罩实施+票级评审、`--lanes`/`/xcheck-setup lanes` 直设、默认3(ADR 0008)。**0.24**:夜链派发单元(实施/票级评审/终局评审)失败从"立即 paused"改为**有界重试**——先还原再进递增等待梯(60s 起步、×2、封顶 15 分钟)自动重派,次数由 `night_retry_max` 控制(默认 5,0=关闭),耗尽才 paused(ADR 0009)。
 
-配置分离与真正权限隔离**尚未实现**。完整[设计蓝图](docs/superpowers/specs/2026-09-19-xcheck-review-convergence-and-portability-design.md)与[0.22精简重构设计](docs/superpowers/specs/2026-09-19-xcheck-0.22-lean-pipeline-redesign.md)不是已完成功能表。当前 CLI 仍靠提示词要求只读指定材料,**不是强制访问隔离,也不是全库取证**;接管检出只约束提交位置,不隔离文件读取、网络或插件(敌意环境配置出范围,触发条件见 ADR 0004)。diag任何入口都不实施;auto-review诊断不建NIGHT、不通知。
+配置分离**已于 0.25 落地**(模板 agents.toml 随分发 + 个人层 `~/.claude/xcheck/personal.toml` 仓库外覆盖,ADR 0010);真正权限隔离**尚未实现**。完整[设计蓝图](docs/superpowers/specs/2026-09-19-xcheck-review-convergence-and-portability-design.md)与[0.22精简重构设计](docs/superpowers/specs/2026-09-19-xcheck-0.22-lean-pipeline-redesign.md)不是已完成功能表。当前 CLI 仍靠提示词要求只读指定材料,**不是强制访问隔离,也不是全库取证**;接管检出只约束提交位置,不隔离文件读取、网络或插件(敌意环境配置出范围,触发条件见 ADR 0004)。diag任何入口都不实施;auto-review诊断不建NIGHT、不通知。
 
 ## 快速开始
 
 从零安装(装 Claude Code、装 xcheck、把各家 AI CLI 配成评审 agent)有单独的上手指南,**推荐直接把那份文档交给你的 AI 照做**:[docs/getting-started.md](docs/getting-started.md)。
 
-已有环境的要点:把仓库的 `xcheck`、`xcheck-setup` 两个目录放进 `~/.claude/skills/`(Windows 用 junction,活链接——改仓库即改 skill);确保 [Claude Code](https://code.claude.com/) 可用、**至少两个** agent CLI 在 `PATH` 上、已登录(出厂认识:`claude`、`codex`、`opencode`、`pi`、`kimi`,加新的见 [agent 管理](#agent-管理);至少一家非 `claude` 才有意义);在 Claude Code 里跑一次 `/xcheck-setup` —— 逐家实测非交互能不能跑通,给出 ✅ / ⏱️ / ❌ / 🔑 一览。出厂默认评审组 = **codex + pi**(`agents.toml` 里的 `default_agents`),不合适就换:`/xcheck-setup default codex,kimi`。
+已有环境的要点:把仓库的 `xcheck`、`xcheck-setup` 两个目录放进 `~/.claude/skills/`(Windows 用 junction,活链接——改仓库即改 skill);确保 [Claude Code](https://code.claude.com/) 可用、**至少两个** agent CLI 在 `PATH` 上、已登录(出厂认识:`claude`、`codex`、`opencode`、`pi`、`kimi`,加新的见 [agent 管理](#agent-管理);至少一家非 `claude` 才有意义);配置分两层(0.25,ADR 0010):模板层随 xcheck 分发、五家契约内置,**开箱即用**;个人层 `~/.claude/xcheck/personal.toml`(仓库外,升级不碰)只放你的个人选择,由 `/xcheck-setup` 维护。想核对配置敲 `/xcheck-setup`(无参,只读一览);各家活没活,真跑一轮 `/xcheck` 看冒烟。出厂默认评审组 = **codex + pi + kimi**(kimi 未装自动降级用交集),不合适就换:`/xcheck-setup default codex,pi`。
 
 然后给它任何东西:
 
@@ -132,7 +132,7 @@ xcheck 是一组全局 [Claude Code](https://code.claude.com/) skill,把本机�
 | 命令 | 作用 |
 |---|---|
 | `/xcheck [--auto-review \| --night] [--agents a,b,c] [--lanes N] [<文字>]` | 摄入 → 盲评 → 取证 → 裁定交付。裸敲先找兼容未完链,否则解析对象;入口旗标直选(无旗标=交互审核)。--auto-review仅无人值守审核,--night才含spec/票、并行实施与推送(不自动开PR)。模式旗标互斥,续跑不得变更原链交互方式或终点;diag始终不实施。--lanes=单晚并发帽(仅--night可带;罩实施+票级评审,优先级高于 night_parallel_lanes)。 |
-| `/xcheck-setup` | 检测 / 验证 / 登记 agent;`lanes N` 查看或设置夜链并发帽。子命令见下。 |
+| `/xcheck-setup` | 评审 agent 配置器(只配置,不检测不验证,ADR 0010)。子命令见下。 |
 
 `/xcheck` 的输入形态:
 
@@ -149,11 +149,11 @@ xcheck 是一组全局 [Claude Code](https://code.claude.com/) skill,把本机�
 
 | 用法 | 作用 |
 |---|---|
-| `/xcheck-setup` | 探测 PATH 上已登记的 CLI,逐家喂极小 prompt 实测(marker 回显),报 ✅ 跑通 / ⏱️ 超时 / ❌ 命令错 / 🔑 未登录 |
-| `/xcheck-setup add <name>` | 登记新 CLI:核实 `--help`、引导填 `agents.toml` 字段、立即验证,失败自动回退 |
-| `/xcheck-setup timeout [N \| <agent> N]` | 查看 / 设置 agent 总执行预算(默认集全局 2700s,可按家覆盖) |
-| `/xcheck-setup default [a,b,c \| --clear]` | 查看 / 设置 / 清空默认评审组 |
-| `/xcheck-setup lanes [N]` | 查看 / 设置夜链并发帽(ADR 0008;出厂 3;单晚 `--lanes` 旗标优先) |
+| `/xcheck-setup` | 只读状态一览:两层登记表(标注来源)、合并生效的默认组/超时/并发帽、坏名警示。零命令执行 |
+| `/xcheck-setup add <name>` | 登记新 CLI(未知家):核实 `--help`、引导五字段、写入个人层;登记完不试跑(真跑 /xcheck 冒烟自验) |
+| `/xcheck-setup timeout [N \| <agent> N]` | 查看 / 设置 agent 总执行预算(默认集全局 2700s,可按家覆盖;写个人层) |
+| `/xcheck-setup default [a,b,c \| --clear]` | 查看 / 设置 / 清空默认评审组(写个人层;--clear 回落出厂组 codex+pi+kimi) |
+| `/xcheck-setup lanes [N]` | 查看 / 设置夜链并发帽(ADR 0008;出厂 3;单晚 `--lanes` 旗标优先;写个人层) |
 
 ## 产物落在哪
 
@@ -187,7 +187,7 @@ xcheck 是一组全局 [Claude Code](https://code.claude.com/) skill,把本机�
 
 ## agent 管理
 
-`~/.claude/skills/xcheck/agents.toml` 是唯一登记表:每家一个 `[agents.<name>]` 块(`installed_check` / `run_cmd` / `input_mode = arg|stdin` / `needs_timeout` / `timeout_sec`),`[defaults]` 放全局超时和默认集。日常用 `/xcheck-setup` 改;手改可以,但别整文件覆盖(会丢注释和实测注记)。
+配置分两层(0.25,ADR 0010):**模板层** `~/.claude/skills/xcheck/agents.toml` 随仓库分发——每家一个 `[agents.<name>]` 块(`installed_check` / `run_cmd` / `input_mode = arg|stdin` / `needs_timeout` / `timeout_sec`)+ 实测坑注记 + 各家 key/端点配置速览,`[defaults]` 放出厂值(超时、默认组、并发帽、重试);**只许精确 Edit,别整文件覆盖**(会丢注释和实测注记)。**个人层** `~/.claude/xcheck/personal.toml`(仓库外,升级不碰)放你的覆盖与新 CLI 登记;日常用 `/xcheck-setup` 改(它只写个人层),手改也可以。
 
 每家 agent 都跑在 `lib/run-agent.sh` 全托管 supervisor 里:后台启动、全程输出落盘、硬超时(默认 2700s)+ 挂起击杀(输出零增长 ~10 分钟)+ 进程树三层击杀;成败只认 exitcode 文件,不认输出里有没有 "error" 字样。
 
@@ -218,7 +218,7 @@ xcheck 是一组全局 [Claude Code](https://code.claude.com/) skill,把本机�
 ```
 xcheck/
 ├── SKILL.md                        # /xcheck 入口壳:--agents / 未完成链 / 路由 / 转派
-├── agents.toml                     # agent 登记表 + 默认配置(超时、默认集)
+├── agents.toml                     # 分发模板层:五家契约+坑注记+key/端点速览+[defaults] 出厂值(个人层 ~/.claude/xcheck/ 覆盖)
 ├── lib/
 │   ├── flow.md                     # 自动链大脑:恢复模式 + 第 0~11 步(第 11 步=夜链接续)+ 铁律
 │   ├── context-intake.md           # 对象/共识摄入与必要背景

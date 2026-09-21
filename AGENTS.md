@@ -8,7 +8,7 @@
 
 xcheck 是两枚全局 Claude Code skill:`/xcheck`(评审/诊断链)和 `/xcheck-setup`(agent管理)。编排大脑是 Markdown 指令 flow.md,主会话做综合/取证裁定,run-agent.sh 机械执行CLI。0.19.0第一批review采用review_schema=2:保真共识→稳定D/F账本→三类取证→事实/阻断独立裁定→限定复审。diag保持旧路径。
 
-**分期边界**:0.19~0.21 三批(审核收敛/模式解耦/隔离交付)经 0.22 重构精简定型:账本塌缩、接管检出替代 worktree、不自动开 PR、事件驱动并行实施。配置分离与真正权限隔离仍未实施;现有材料范围靠提示词与 material 失败关闭门,不能称强制沙箱(触发条件见 ADR 0004)。
+**分期边界**:0.19~0.21 三批(审核收敛/模式解耦/隔离交付)经 0.22 重构精简定型:账本塌缩、接管检出替代 worktree、不自动开 PR、事件驱动并行实施。0.25 配置分离已实施(ADR 0010:模板 agents.toml 随分发 + 个人层 `~/.claude/xcheck/personal.toml` 仓库外同名键覆盖;`/xcheck-setup` 收窄为纯配置器,不检测不验证);真正权限隔离仍未实施,现有材料范围靠提示词与 material 失败关闭门,不能称强制沙箱(触发条件见 ADR 0004)。
 
 夜链由 `--night` 触发,评审后内联to-spec/to-tickets再并行实施;仅推进无活动约束且依赖已验证完成的票。**并发帽 `--lanes > night_parallel_lanes`(默认3,ADR 0008)罩实施泳道+票级评审合计,空位评审优先**。派发单元(实施位/票级评审位/终局评审)失败走**有界重试**(ADR 0009,显式取代 ADR 0007 落者即 paused 条款):异常终止/回报缺失/超时触发(四态回报不触发),先三步还原再进递增等待梯(60s→×2→封顶15min),每单元至多 `night_retry_max` 次(agents.toml,默认5,0=关闭),重试中占位不回填、同波错峰 i×30s、轨迹落盘可断链重建;耗尽才记 paused(带阶段)。夜链在当前检出起分支干活(接管,ADR 0005——隔离是操作者的选择);审核共识/修订/附录只在原仓.xcheck;spec/票/最小.gitignore/代码全部同一夜链分支提交(`git commit --only`+`--no-verify`,编辑并行提交串行)。原分支零 commit/push/pull/rebase;每票即推夜链分支(显式URL、不force、不交互、不跑hook);**不自动开PR**(ADR 0006),晨报给脱敏compare一键链接。发布结果单列,绝不force/自动合并。
 
@@ -82,7 +82,7 @@ flow.md(严格保持0~11编号)
 |---|---|---|
 | `xcheck/SKILL.md` | 入口壳:互斥模式旗标(--auto-review/--night)与--agents、未完成链检查、MODE路由、转派 | 无旗标=交互审核(旗标直选,0.22);续跑不改原交互方式/终点;词表只在此文件 |
 | `xcheck/lib/run-mode.sh` | 纯模式解析helper:MODE_REQUEST及可选持久化interaction/target → 规范化字段 | 新链一参数、恢复三参数;缺字段报错;非零停止,输出不得source/eval;不检查schema或授予权限 |
-| `xcheck/agents.toml` | agent 登记表 + `[defaults]`(timeout_sec、default_agents) | **只能 Edit 精确匹配,禁止整文件 Write**(注释是实测注记);`/xcheck-setup` 模式 C/D 也走 Edit |
+| `xcheck/agents.toml` | **分发模板层**(0.25,ADR 0010):五家契约+坑注记+key/端点配置速览+`[defaults]` 出厂值(默认组/超时/并发帽/重试);个人层 `~/.claude/xcheck/personal.toml` 同名键覆盖、新 CLI 登记也落个人层 | **模板只能 Edit 精确匹配,禁止整文件 Write**(注释是实测注记);`/xcheck-setup` 的一切写落个人层;run-agent/detect 两层合并读取 |
 | `xcheck/lib/flow.md` | 自动链大脑:步骤定义、播报纪律、边界表、铁律 | **步骤编号(0~11)与 PROGRESS 阶段枚举是跨文件协议**(SKILL、carrier、setup、两份 AI 文档都引用);改编号 = 改协议,须全量同步 |
 | `xcheck/lib/context-intake.md` | review共识快照/对象优先级;diag沿用原摄入 | 短答绑定问题/选项,助手提议不冒充已确认,当前讨论不被无关新文件截走 |
 | `xcheck/lib/review-contract.md` | schema2唯一集中契约:D/F、裁定、复审、下游与恢复 | review摄入/分类/交付前必读;变更须同步全部投影,不得重解释旧记录 |
@@ -91,11 +91,11 @@ flow.md(严格保持0~11编号)
 | `xcheck/lib/subagent-carrier.md` | 搬运工指令(7 步) | 后台启动 + **回合内阻塞等待**两条纪律是用事故换来的,别"简化";CLI 噪声剥离表(update 时同步 cli-findings) |
 | `xcheck/lib/extractor-carrier.md` | 摘录员指令:按来源筛([用户]/[材料]),不改写不评判 | 输出格式 `## 摘录事实清单` 被 context-intake 0.2 引用 |
 | `xcheck/lib/run-agent.sh` | agent 执行 supervisor:预检/构造/取证/监控/三层击杀 | 改它必跑回归测试(见下);exitcode 协议(0/124/65/66/67)是 API,别复用码值;内部节流可用环境变量 `XCHECK_POLL_SEC`/`XCHECK_STALL_SEC` 覆盖 |
-| `xcheck/lib/detect.sh` | PATH 探测(`command -v`;stdout=已装,stderr=登记未装) | CRLF 容错解析,勿引入重依赖 |
+| `xcheck/lib/detect.sh` | PATH 探测(`command -v`;stdout=已装,stderr=登记未装;登记表=模板+个人层两层并集) | CRLF 容错解析,勿引入重依赖 |
 | `xcheck/prompts/diag.md` `review.md` `re-review.md` | 外部agent指令模板 | 防自代入护栏不可删;review新增DECISIONS_PATH,复审另有RE_REVIEW_PATH;填路径后UTF-8≤2048字节;返回形状同步RESULT_SHAPE/carrier |
 | `xcheck/prompts/synthesize-diag.md` `synthesize-review.md` `triage.md` `triage-review.md` | 主会话汇总、分模式分类 | diag不变;review三类稳定F,最终裁定先入FINDINGS再投影,禁止恢复旧必改并集 |
-| `xcheck-setup/SKILL.md` | 5 种模式:检测验证 / add / timeout / default / lanes | setup 不校验"已装"(运行时 detect 管);homogeneity 只警告不拦 |
-| `xcheck/tests/run-agent.test.sh` | supervisor 的 stub 回归(33 断言,零依赖,~15s) | 改 run-agent.sh / toml 解析必须全绿;新行为补断言 |
+| `xcheck-setup/SKILL.md` | 纯配置器(0.25,ADR 0010):无参只读状态 / add(未知家) / timeout / default / lanes;一切写落个人层 | setup 不检测不验证(可用性=运行时冒烟+用户外部自理);homogeneity 只警告不拦 |
+| `xcheck/tests/run-agent.test.sh` | supervisor 的 stub 回归(45 断言,零依赖,~20s;含两层合并 12 条) | 改 run-agent.sh / toml 解析必须全绿;新行为补断言 |
 
 ## 铁律(不变量——改代码、改文档、改 prompt 都不许破)
 
@@ -136,7 +136,7 @@ Windows 已知坑(都已在代码里处理,重构时别退化):反斜杠路径�
 
 ## 扩展指南
 
-**新增 agent CLI**:优先让用户跑 `/xcheck-setup add <name>`(自动核实 `--help`、引导字段、验证、失败回退)。手工路径:在 `agents.toml` 追加 `[agents.<name>]` —— `installed_check`(探测命令,一般就是名字)/ `run_cmd`(不含 prompt 的前缀,**按空格分词、token 不得含空格**)/ `input_mode = arg|stdin` / `needs_timeout`(历史会卡才 true)/ `timeout_sec`。然后用 `/xcheck-setup`(模式 A)验证 marker `hello-from-<name>` 回显。CLI 噪声形态若有新花样,补进 `subagent-carrier.md` 第 3 步和 `docs/cli-findings.md`。
+**新增 agent CLI**:已知五家(claude/codex/opencode/pi/kimi)已内置模板层,无需登记——要上场就把名字加进默认组(`/xcheck-setup default`)。新 CLI:优先让用户跑 `/xcheck-setup add <name>`(自动核实 `--help`、引导字段、写个人层;登记完不试跑,真跑 `/xcheck` 冒烟自验)。手工路径:在**个人层** `~/.claude/xcheck/personal.toml` 追加 `[agents.<name>]` —— `installed_check`(探测命令,一般就是名字)/ `run_cmd`(不含 prompt 的前缀,**按空格分词、token 不得含空格**)/ `input_mode = arg|stdin` / `needs_timeout`(历史会卡才 true)/ `timeout_sec`。CLI 噪声形态若有新花样,补进 `subagent-carrier.md` 第 3 步和 `docs/cli-findings.md`。
 
 **改 prompt 模板**:保持指令层 ≤2KB、槽位命名、防自代入护栏;返回结构字段变了要顺藤改 RESULT_SHAPE(flow 3.3)、汇总与 triage 模板。
 
@@ -145,7 +145,7 @@ Windows 已知坑(都已在代码里处理,重构时别退化):反斜杠路径�
 ## 测试义务
 
 ```bash
-bash xcheck/tests/run-agent.test.sh    # 零依赖(只要 bash + coreutils),~15s,33 断言
+bash xcheck/tests/run-agent.test.sh    # 零依赖(只要 bash + coreutils),~20s,45 断言
 ```
 
 改night-delivery/night-git及第11步需跑 `bash xcheck/tests/night-git.test.sh`;只用临时repo与本地bare remote,不得真实推送。机械Git通过不证明全链行为已验收。改模式解析/入口/恢复需跑 `bash xcheck/tests/run-mode.test.sh`;改并发帽/泳道调度/有界重试需跑 `bash xcheck/tests/night-parallel.test.sh`(0.24,66 断言)。改 `run-agent.sh`、`detect.sh`、`agents.toml` 解析逻辑 → **必须全绿再交付**。review契约/模板/flow还需跑 `bash xcheck/tests/review-contract.test.sh` 的离线结构与样例检查(含字段字典同步锁);静态检查不能证明模型正确理解,须区分已运行检查、场景回放和未授权未执行的真实CLI端到端。禁止偷偷调用付费CLI或外发材料作验收。

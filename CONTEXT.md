@@ -4,7 +4,7 @@
 
 ## Language
 
-> **版本边界**:0.19~0.21 三批(审核收敛/模式解耦/隔离交付)经 0.22 精简重构定型:账本塌缩、接管检出替代 worktree、不自动开PR、事件驱动并行实施(0.23 起并发帽罩票级评审,ADR 0008);决策记录见 [ADR 0004-0009](docs/adr/)。下列review现行术语仅用于 `review_schema = 2`;旧协议链一律拒绝续跑,不重解释历史“必改/收敛”。diag保持旧语义,始终不实施。配置分离与真正权限隔离尚未实施。权威契约见 [review-contract.md](xcheck/lib/review-contract.md)与[night-delivery.md](xcheck/lib/night-delivery.md)。
+> **版本边界**:0.19~0.21 三批(审核收敛/模式解耦/隔离交付)经 0.22 精简重构定型:账本塌缩、接管检出替代 worktree、不自动开PR、事件驱动并行实施(0.23 起并发帽罩票级评审,ADR 0008);决策记录见 [ADR 0004-0009](docs/adr/)。下列review现行术语仅用于 `review_schema = 2`;旧协议链一律拒绝续跑,不重解释历史“必改/收敛”。diag保持旧语义,始终不实施。配置分离已实施(0.25,ADR 0010),真正权限隔离尚未实施。权威契约见 [review-contract.md](xcheck/lib/review-contract.md)与[night-delivery.md](xcheck/lib/night-delivery.md)。
 
 ### 核心模型
 
@@ -156,8 +156,8 @@ _Avoid_: 夜链 SUMMARY、暂停未解却只建议重跑
 _Avoid_: 按最新文件替用户选对象、默认助手提议已获确认
 
 **冒烟(smoke)**:
-fan-out 前对每家 agent 的活性预检(读小文件并回显);预算按 agents.toml 的 smoke_timeout_sec(缺省60),超时只自动重试一次。它验证活性和读材料能力,不证明权限隔离。
-_Avoid_: 安全沙箱验证
+fan-out 前对每家 agent 的活性预检(读小文件并回显);预算按 smoke_timeout_sec(个人层覆盖模板,缺省60),超时只自动重试一次。它验证活性和读材料能力,不证明权限隔离;是可用性的唯一活性权威(0.25 起 setup 不再验证)。
+_Avoid_: 安全沙箱验证、setup 侧第二套验证口径
 
 **选集(SELECTED)**:
 实际参评名单,来源优先级 --agents > default_agents > 报错要求设默认集;取已装交集后再冒烟筛选。
@@ -167,7 +167,7 @@ _Avoid_: 候选集(CANDIDATES 是筛选前名单)
 并行向各家发评审任务。首轮互不可见;复审共同读取上轮问题基线,仍不可见本轮他家输出。
 
 **评审 agent**:
-agents.toml 登记的外部 AI CLI(如 codex、pi、kimi),xcheck 以非交互命令调它做独立盲评并取回结论。意见由它出,综合与裁定只在主会话。
+两层登记表(模板 agents.toml + 个人层 personal.toml)登记的外部 AI CLI(如 codex、pi、kimi),xcheck 以非交互命令调它做独立盲评并取回结论。意见由它出,综合与裁定只在主会话。
 _Avoid_: 搬运工(那是包装它干活的 subagent)、审核者
 
 **搬运工(carrier)**:
@@ -214,7 +214,21 @@ _Avoid_: 提示词等于权限、cwd/worktree等于隔离
 **旧版已验证三分类清单 / 必改项**:
 仅用于无 review_schema 的历史 review:①证实 + ②成立的机械并集为必改项,①②使用 #n、③无编号;旧收敛表示该并集清零。旧记录只读保留,不能用新版阻断语义重解释。diag 保留旧三分类与完成(diag),不做验证链、不写新版 D/F 账本。
 
+### 配置两层(0.25,ADR 0010)
+
+**分发模板(distribution template)**:
+随 xcheck 分发的契约与知识层(仓库内 agents.toml):已知评审 agent 的机器契约字段(run_cmd/input_mode/超时等)、实测坑注记与各家 key/端点配置速览;`[defaults]` 为出厂值(默认组 codex+pi+kimi)。已知家零手填;只有未知 CLI 才走填表登记。key/登录态永不入模板。
+_Avoid_: 把 key 当模板内容、把模板当个人配置、给已知家恢复手填字段
+
+**个人层(personal config)**:
+仓库外的用户配置(~/.claude/xcheck/personal.toml):默认组、并发帽、重试上限、超时覆盖与新 CLI 登记。同名字段覆盖模板;/xcheck-setup 的一切写都落这里;升级/分发不碰它。取代旧「个人配置随 git 仓库走」取舍(2026-08-13 default-agents 设计稿)。
+_Avoid_: 塞回 agents.toml 单文件两职能、两层字段混写
+
+**配置边界(setup scope)**:
+/xcheck-setup 只负责「用哪些评审 agent 上场」——登记、选集默认组、个人参数;不做可用性检查(装没装/key 配没配/端点通不通归用户外部操作),运行时冒烟是唯一活性权威。无多档位——一个默认组 + `--agents` 单次换 + `default` 子命令永久改。
+_Avoid_: setup 内验证循环、探测推荐、setup 碰 key、多档位预设集
+
 ### 后续目标(尚未实施)
 
-**可分发配置 / 强制材料隔离**:
-分别为第四、五批目标:分发模板与个人配置分离、统一解析;逐CLI验证真正只读/材料访问边界。当前未实现,不得用这些目标描述现有安装或安全保障。0.22 的接管检出只约束提交位置,不是权限隔离;敌意环境配置明确出范围(ADR 0004,触发条件=夜链自动实施不可信外部材料前必须先上沙箱)。
+**强制材料隔离**:
+第五批目标:逐CLI验证真正只读/材料访问边界。当前未实现,不得用这些目标描述现有安装或安全保障。0.22 的接管检出只约束提交位置,不是权限隔离;敌意环境配置明确出范围(ADR 0004,触发条件=夜链自动实施不可信外部材料前必须先上沙箱)。

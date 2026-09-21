@@ -80,7 +80,7 @@ smoke_cfg = <sha256>
 
 - `source`:正常审核/auto-review为对象绝对路径或inline,复审指新稿;完整night始终inline,`original_source`仅追溯原始文件/inline,不得作为写回目标。`prev`/`next`关联复审环。
 - `material = trusted|external`(0.22):来源为外部的材料(贴文/URL/跨仓,无论键入粘贴)记external,第11步失败关闭门使用。字段唯一定义处=flow.md「账本字段字典」;业务未提交变更不自动stash、commit或复制,夜链脏区底账与停靠规则处理。
-- `smoke_cfg`:最近实际冒烟通过时 agents.toml 的 sha256;跳冒烟须同时满足最近真实成功、配置指纹一致、上轮该家完整成功,不从连续跳过记录推导成功。
+- `smoke_cfg`:最近实际冒烟通过时两层配置(模板 agents.toml + 个人层 personal.toml 合并)的 sha256;跳冒烟须同时满足最近真实成功、配置指纹一致、上轮该家完整成功,不从连续跳过记录推导成功。
 - `auto_revisions_used`:原生首环0,自动修订递增并跨环保留;新首环round=0不重置已用预算。
 - `interaction`/`target`:所有新mode都必须同时保存。合法组合仅 `interactive/review`(正常审核)、`unattended/review`(--auto-review)、`unattended/implementation`(--night)。复审继承原模式。
 - 只有两字段同时缺失才作旧兼容映射:`night=on`→完整night,无night→正常审核;半缺、非法枚举、非法组合或与night标记冲突拒绝。`night=on`仅完整night的兼容标记,不是单独授权。
