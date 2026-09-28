@@ -89,7 +89,7 @@ xcheck 是一组全局 [Claude Code](https://code.claude.com/) skill,把本机�
 >
 > 这轮还没改稿。建议先确定保留规则,再修订迁移路径。原始评审和逐条证据都在 `.xcheck/20260919-142233/`,不需要先打开文件才能决定。
 
-机器编号、事实/裁定状态和完整来源留在 decisions/FINDINGS/SUMMARY;对话当场解释问题、影响范围和解除条件。
+机器编号、事实/裁定状态和完整来源留在 decisions/FINDINGS 及 SUMMARY/晨报文末对账区;SUMMARY/晨报正文与对话一律人话、零编号,对话当场解释问题、影响范围和解除条件。
 
 ### 修订与复审
 

@@ -3,6 +3,17 @@
 All notable changes to `xcheck`. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 本文件记录 xcheck 的所有显著变更。
 
+## [0.26.0] - 2026-09-28
+
+**终态交付改人话**(grill-with-docs 设计访谈定型)。动机:终态产物(SUMMARY/晨报)密度高 + F/D/票编号交叉引用逼人跳读,用户实证"看起来不明确";诊断结论是**写法问题不是缺图**,可视化层后议(评估过 show-me/teach 外挂,未采纳)。
+
+### Changed / 变更
+
+- **编号纪律**:SUMMARY/MORNING 正文零编号——问题用人话指代(如"记法回归"),F/D/票编号只活在机器账与文末**对账区**(新增"人话指代↔编号"对照表 + 机器账路径);播报纪律同步收口("机器词只出现在 SUMMARY.md"→"只出现在机器账与对账区")。
+- **SUMMARY**:置顶新增**一句话总判**(≤40 字:修了什么/还剩什么/能不能推进);五字段字段名与顺序不变,写法全改(enum 译人话、黑话复合词拆开)。
+- **晨报**:标题下加一句话总判;【执行了什么】落地内容禁黑话复合词斜杠串(如"单元梯/先还原/五态互斥"),拆平铺条目一条一句人话;编号折进附录对账。四问骨架、Pushover 通知条款、FINDINGS 机器账不动。
+- 契约落点:flow.md(播报纪律 / 第 9 步 / 第 11 步晨报)+ review-contract.md(SUMMARY 投影)+ CONTEXT.md 词条;验收方式:091148 真实链产物按新规则重写、用户逐段确认后才固化。全套测试 275/0 通过(措辞无测试锁定)。
+
 ## [0.25.0] - 2026-09-21
 
 **setup 收窄为纯配置器 + 配置两层分离**(grill-with-docs 设计访谈定型;决策:[ADR 0010](docs/adr/0010-setup-config-only-template-personal-split.md),取代 2026-08-13 default-agents 设计稿「个人配置随 git 仓库走」取舍)。动机:setup 复杂度调查坐实大头在「知识前置 + 逐家手填」——getting-started 第 4 步 key/端点配置占全文约 50% 且 xcheck 不接管、启用一家要手填 5 个机器契约字段、setup 验证与运行时冒烟双轨两套口径;用户定边界原则:**setup 只配置用哪些评审 agent,不检查可用性**——可用性归用户外部操作 + 运行时冒烟(唯一活性权威),防项目臃肿。

@@ -117,7 +117,7 @@ flow.md(严格保持0~11编号)
 - **schema2新字段/材料**:review_schema=2、next、material;intake完成须proposal+decisions,triage完成须FINDINGS,复审须re-review-context及上一环映射。D/F链内稳定,复审保留完整历史;必需产物缺失/未知schema停止。
 - **自动修订预算**:auto_revisions_used原生0、自动修订递增且跨环保留,不因新环round=0重置预算。
 - **终态七值**保留:无需修订=首轮活动约束空;收敛(N轮修订)=修订后活动约束空;用户不修=用户先交付但约束保留;夜间收工=auto-review或night的策略预算/决策边界交付,不代表实施权限;推倒重来仅用户明确放弃;用户中止;完成(diag)。无需建议清零,结束不等于放行/实现完成。
-- **SUMMARY五字段**:状态(可推进/相关路径暂停)、活动约束(证据或缺口/范围/解除条件)、各家裁决、信号、统计。先FINDINGS裁定,后机械投影;附录和对话精选建议不扩票。
+- **SUMMARY五字段**:状态(可推进/相关路径暂停)、活动约束(证据或缺口/范围/解除条件)、各家裁决、信号、统计。先FINDINGS裁定,后机械投影;置顶一句话总判(≤40字),正文人话零编号,F/D/票编号只在文末对账区(晨报同纪律);附录和对话精选建议不扩票。
 - **NIGHT四阶段**review/plan/impl/finish不变,review夜链写schema2。票只以complete(可达提交+rounds+scoped验证记录)/paused(原因及解除条件)/blocked(依赖票)/rework(轮次)/committed-unreviewed(oid)调度,不能有行就跳过。有paused/blocked或全局待决则写waiting(解除条件与证据基线),impl/finish未勾,晨报可先交付;恢复先核新证据并更新D/F再重算就绪集,没有则返回暂停摘要,不重复实施/发布/通知。全部票处理完成才勾finish;全部complete且无约束/终局阻断才全绿,只剩非阻断参考可带停靠完成,有paused/blocked/活动约束则未完成,spec/拆票失败则失败收工。push记录已推/未推及原因/无远端;全绿不代表发布成功。
 - **交付协议(0.22)**:NIGHT记start_oid/branch/remote_url(脱敏)/pr_base/web_base,第11步接管时冻结;复审继承。source=inline,original_source仅追溯;无Git/HEAD只审核,无remote只本地。恢复从票账本重算就绪集,分支丢失或提交不可达暂停不重建。complete必须完整OID和scoped验证/评审证据,不能只短SHA或"绿"。字段唯一定义处=flow.md「账本字段字典」。
 - **旧协议**:无schema的旧review与0.21及更早字段集的旧night一律拒绝续跑+提示新开(0.22),只读保留,不迁移不重放,不按新语义重解释。无PROGRESS极旧目录仍忽略。diag保留旧三分类、无新版验证链且不实施。
