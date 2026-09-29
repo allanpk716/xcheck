@@ -156,7 +156,7 @@ bash xcheck/tests/run-agent.test.sh    # 零依赖(只要 bash + coreutils),~20s
 2. `CONTEXT.md` —— 新术语入表 / 旧术语改口径(附 _Avoid_)。
 3. `README.md` —— 用户可感知的行为变化;安装/评审 agent 配置口径变化同步 `docs/getting-started.md`。
 4. `AGENTS.md`(本文)+ `docs/artifacts.md` —— 协议、不变量、产物格式变化。
-5. `docs/superpowers/specs|plans/` —— 大改先落设计稿与计划(体例看旧稿),再动实现。
+5. 设计稿与票(Matt 管线)—— 大改先 `grill-with-docs` 拷问定案,spec 落 `.scratch/<slug>/spec.md`、票落 `.scratch/<slug>/issues/`(体例看 `docs/agents/issue-tracker.md` 与旧例 `.scratch/xcheck-bounded-retry/`);历史 `docs/superpowers/` 只读保留,不再新增(ADR 0011)。
 
 ## 仓库约定
 
@@ -164,3 +164,26 @@ bash xcheck/tests/run-agent.test.sh    # 零依赖(只要 bash + coreutils),~20s
 - 行尾 LF(`.gitattributes` 锁定);`.xcheck/` 已 gitignore,产物永不 commit。
 - 提交信息看 `git log` 体例:conventional 前缀,主题中英皆可,关键事故写明实证日期。
 - 依赖极简:bash + coreutils;skill 运行时依赖 Claude Code 的 Agent/AskUserQuestion/Bash 工具语义。
+
+## Agent skills
+
+### Issue tracker
+
+工单与 spec 落在仓库内 `.scratch/` 本地 markdown,不用 GitHub Issues。见 `docs/agents/issue-tracker.md`。
+
+### Domain docs
+
+单上下文布局:根 `CONTEXT.md` + `docs/adr/`。见 `docs/agents/domain.md`。
+
+### 开发期依赖(Matt Pocock 技能集)
+
+本仓库开发流程依赖本机 Matt 技能集,开工前自查以下名字应出现在 `~/.claude/skills/`(缺哪个,手敲对应 `/` 命令会直接报不存在,自曝不静默;不写检测脚本,ADR 0011):
+
+- `grill-with-docs`(= grilling + domain-modeling):设计拷问 + 词条/ADR
+- `to-spec`:固化 spec → `.scratch/<slug>/spec.md`
+- `to-tickets`:拆票 → `.scratch/<slug>/issues/`
+- `implement`(= tdd + code-review):逐票实施
+- `wayfinder`:不确定工作的问题分解(可选)
+- `handoff`:会话交接
+
+**运行时零依赖不变量(ADR 0011)**:`/xcheck` 运行时(含 `--night`)不得调用或检测以上任何技能——夜链内联的是改编冻结版;运行时代码出现"检测 Matt 技能"即内联设计被破坏的报警信号,评审必拦。
