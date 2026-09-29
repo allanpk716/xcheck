@@ -3,6 +3,19 @@
 All notable changes to `xcheck`. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 本文件记录 xcheck 的所有显著变更。
 
+## [0.27.0] - 2026-09-29
+
+**产物落点统一 `.scratch` + 依赖重定向 Matt 技能集**(grill-with-docs 设计访谈定型;决策:[ADR 0011](docs/adr/0011-matt-pipeline-methodology-dependency.md)、[ADR 0012](docs/adr/0012-night-acceptance-protocol.md))。动机:本机 Superpowers 技能集移除后 `docs/superpowers/` 成死名字——夜链每跑一次仍向目标仓库新增该目录下的 spec,讨论型共识稿同路径,票却已按 Matt 约定落 `.scratch/`,一条链两个家;同时运行时对 Matt 技能的关系从未定形(内联改编版无出处注记、无漂移纪律)。
+
+### Changed / 变更
+
+- **夜链 spec 落盘迁移(第 11 步)**:`docs/superpowers/specs/<日期>-<主题>-spec.md` → `.scratch/<feature-slug>/spec.md`,与票目录同家(slug 从 object 主题推导);`.scratch` 被 gitignore 时与票同规则最小放行;NIGHT 头部 `spec` 字段注释同步。
+- **讨论型共识稿落盘迁移(正常审核与 --auto-review)**:`docs/superpowers/specs/<日期>-<主题>-consensus.md` → `.scratch/<主题-slug>/consensus.md`。旧链不受影响:source 是摄入时记录的绝对路径,恢复按账本字段,不做目录扫描。
+- **对象解析器跨会话候选扫描收口**:`docs/superpowers/specs|plans/` 改扫 `.scratch/*/`(Matt 管线 spec 与 xcheck 产物同家,一次扫全)+ `docs/`;历史 `docs/superpowers/` 只读保留,不再新增。
+- **出处注记纪律 + 运行时零依赖不变量(ADR 0011)**:flow.md 内联 to-spec/to-tickets 段携带带日期出处声明与差异清单(关卡自动裁定、本地落盘不上 tracker、票格式扩展);`/xcheck` 任何模式不得调用或检测 Matt 技能——运行时代码出现"检测 Matt 技能"即内联设计被破坏的报警信号。
+- 开发期配套:AGENTS.md 开发期依赖清单(Matt 技能集声明,不写检测脚本)与文档同步义务第 5 条改指 `.scratch/`;`docs/agents/`(issue-tracker/domain)约定入册;清 0.17 时代残留 worktree(分支已全量并回 main)。
+- 验收方式:结构自检(`xcheck/` 内不再有向 `docs/superpowers/` 写入的指令)+ night-git/night-parallel/review-contract 机械测试;真实 CLI 端到端首验按 [ADR 0012](docs/adr/0012-night-acceptance-protocol.md) 协议另行执行(fixture 靶场+七判据+双条件),不随本条目声明完成。
+
 ## [0.26.0] - 2026-09-28
 
 **终态交付改人话**(grill-with-docs 设计访谈定型)。动机:终态产物(SUMMARY/晨报)密度高 + F/D/票编号交叉引用逼人跳读,用户实证"看起来不明确";诊断结论是**写法问题不是缺图**,可视化层后议(评估过 show-me/teach 外挂,未采纳)。

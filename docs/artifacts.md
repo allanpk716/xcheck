@@ -188,7 +188,7 @@ spec/票路径以NIGHT所记夜链分支检出为根(接管检出,0.22)。branch
 - waiting恢复先核新证据/决策,更新D/F后重算就绪集;无新证据则返回现有暂停摘要,不重复实施、发布或通知。
 - MORNING.md 是四问人话交付,附裁定与暂停/依赖状态、解除条件、分支与compare链接及验证结果、"你在夜链分支,git switch <pr_base> 返回"、hooks已跳过声明、票路径独占清单。推倒重来/用户中止/diag不接下游,写未执行实施短稿。
 
-**0.22精简交付**:spec在 `<repo>/docs/superpowers/specs/`,票在 `<repo>/.scratch/<slug>/issues/`,必要最小.gitignore调整及所有代码也在同一夜链分支提交(接管检出,ADR 0005;`git commit --only`+`--no-verify`,编辑并行提交串行)。原分支不commit/push/pull/rebase,原仓只写.xcheck审核账本,不自动复制或处理业务未提交改动(脏区底账+停靠票)。规格整合已审proposal、D约束与精选附录形成自包含需求,不上传整个.xcheck、原始反馈或私有聊天。
+**0.22精简交付(0.27 落点统一)**:spec与票同在 `<repo>/.scratch/<slug>/`(`spec.md` + `issues/`,被gitignore时最小放行),必要最小.gitignore调整及所有代码也在同一夜链分支提交(接管检出,ADR 0005;`git commit --only`+`--no-verify`,编辑并行提交串行)。原分支不commit/push/pull/rebase,原仓只写.xcheck审核账本,不自动复制或处理业务未提交改动(脏区底账+停靠票)。规格整合已审proposal、D约束与精选附录形成自包含需求,不上传整个.xcheck、原始反馈或私有聊天。
 
 `night-git.sh start <repo> <branch> <start_oid>`接管检出:分支不存在则自冻结基线建并切换(HEAD已移动则拒绝);存在则幂等核对或切回;操作者改动阻挡切换时输出 blocked 由链记 waiting。`night-git.sh snapshot <repo> <refname>` 对tracked脏内容做 stash create 并 update-ref 防 gc(untracked 不含,已记限制)。每次 start 都刷新底账并重算停靠票。
 

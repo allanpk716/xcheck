@@ -8,7 +8,7 @@
 
 xcheck 是两枚全局 Claude Code skill:`/xcheck`(评审/诊断链)和 `/xcheck-setup`(agent管理)。编排大脑是 Markdown 指令 flow.md,主会话做综合/取证裁定,run-agent.sh 机械执行CLI。0.19.0第一批review采用review_schema=2:保真共识→稳定D/F账本→三类取证→事实/阻断独立裁定→限定复审。diag保持旧路径。
 
-**分期边界**:0.19~0.21 三批(审核收敛/模式解耦/隔离交付)经 0.22 重构精简定型:账本塌缩、接管检出替代 worktree、不自动开 PR、事件驱动并行实施。0.25 配置分离已实施(ADR 0010:模板 agents.toml 随分发 + 个人层 `~/.claude/xcheck/personal.toml` 仓库外同名键覆盖;`/xcheck-setup` 收窄为纯配置器,不检测不验证);真正权限隔离仍未实施,现有材料范围靠提示词与 material 失败关闭门,不能称强制沙箱(触发条件见 ADR 0004)。
+**分期边界**:0.19~0.21 三批(审核收敛/模式解耦/隔离交付)经 0.22 重构精简定型:账本塌缩、接管检出替代 worktree、不自动开 PR、事件驱动并行实施。0.25 配置分离已实施(ADR 0010:模板 agents.toml 随分发 + 个人层 `~/.claude/xcheck/personal.toml` 仓库外同名键覆盖;`/xcheck-setup` 收窄为纯配置器,不检测不验证);0.27 产物落点统一 `.scratch`(夜链 spec 与讨论型共识稿迁入、与票同家,ADR 0011;运行时对 Matt 技能零依赖零检测);真正权限隔离仍未实施,现有材料范围靠提示词与 material 失败关闭门,不能称强制沙箱(触发条件见 ADR 0004)。
 
 夜链由 `--night` 触发,评审后内联to-spec/to-tickets再并行实施;仅推进无活动约束且依赖已验证完成的票。**并发帽 `--lanes > night_parallel_lanes`(默认3,ADR 0008)罩实施泳道+票级评审合计,空位评审优先**。派发单元(实施位/票级评审位/终局评审)失败走**有界重试**(ADR 0009,显式取代 ADR 0007 落者即 paused 条款):异常终止/回报缺失/超时触发(四态回报不触发),先三步还原再进递增等待梯(60s→×2→封顶15min),每单元至多 `night_retry_max` 次(agents.toml,默认5,0=关闭),重试中占位不回填、同波错峰 i×30s、轨迹落盘可断链重建;耗尽才记 paused(带阶段)。夜链在当前检出起分支干活(接管,ADR 0005——隔离是操作者的选择);审核共识/修订/附录只在原仓.xcheck;spec/票/最小.gitignore/代码全部同一夜链分支提交(`git commit --only`+`--no-verify`,编辑并行提交串行)。原分支零 commit/push/pull/rebase;每票即推夜链分支(显式URL、不force、不交互、不跑hook);**不自动开PR**(ADR 0006),晨报给脱敏compare一键链接。发布结果单列,绝不force/自动合并。
 

@@ -23,7 +23,7 @@ xcheck 是一组全局 [Claude Code](https://code.claude.com/) skill,把本机�
 
 ### 0.21.0 的分期范围
 
-[批准计划](docs/superpowers/plans/2026-09-19-xcheck-review-convergence-and-portability.md)第一、二批已实现保真共识、`review_schema = 2` 决策/问题账本、限定复审、局部暂停及 `--auto-review`。**0.22 精简重构**:三批功能经盲评修订定型——账本塌缩(字段字典单源)、**接管检出**替代 worktree(隔离是操作者的选择,ADR 0005)、**不自动开PR**(交付止于已推分支+晨报一键compare链接,ADR 0006)、**事件驱动并行实施**(就绪集调度,编辑并行提交串行,ADR 0007)、信任模型三档定界(ADR 0004,`material=external` 失败关闭)。旧协议链一律拒绝续跑+提示新开。**0.23**:并发帽罩实施+票级评审、`--lanes`/`/xcheck-setup lanes` 直设、默认3(ADR 0008)。**0.24**:夜链派发单元(实施/票级评审/终局评审)失败从"立即 paused"改为**有界重试**——先还原再进递增等待梯(60s 起步、×2、封顶 15 分钟)自动重派,次数由 `night_retry_max` 控制(默认 5,0=关闭),耗尽才 paused(ADR 0009)。
+[批准计划](docs/superpowers/plans/2026-09-19-xcheck-review-convergence-and-portability.md)第一、二批已实现保真共识、`review_schema = 2` 决策/问题账本、限定复审、局部暂停及 `--auto-review`。**0.22 精简重构**:三批功能经盲评修订定型——账本塌缩(字段字典单源)、**接管检出**替代 worktree(隔离是操作者的选择,ADR 0005)、**不自动开PR**(交付止于已推分支+晨报一键compare链接,ADR 0006)、**事件驱动并行实施**(就绪集调度,编辑并行提交串行,ADR 0007)、信任模型三档定界(ADR 0004,`material=external` 失败关闭)。旧协议链一律拒绝续跑+提示新开。**0.23**:并发帽罩实施+票级评审、`--lanes`/`/xcheck-setup lanes` 直设、默认3(ADR 0008)。**0.24**:夜链派发单元(实施/票级评审/终局评审)失败从"立即 paused"改为**有界重试**——先还原再进递增等待梯(60s 起步、×2、封顶 15 分钟)自动重派,次数由 `night_retry_max` 控制(默认 5,0=关闭),耗尽才 paused(ADR 0009)。**0.27**:设计类产物统一落 `.scratch/<slug>/`(夜链 spec、讨论型共识稿与票同家),`docs/superpowers/` 只读退役;运行时对 Matt 技能零依赖零检测(ADR 0011)。
 
 配置分离**已于 0.25 落地**(模板 agents.toml 随分发 + 个人层 `~/.claude/xcheck/personal.toml` 仓库外覆盖,ADR 0010);真正权限隔离**尚未实现**。完整[设计蓝图](docs/superpowers/specs/2026-09-19-xcheck-review-convergence-and-portability-design.md)与[0.22精简重构设计](docs/superpowers/specs/2026-09-19-xcheck-0.22-lean-pipeline-redesign.md)不是已完成功能表。当前 CLI 仍靠提示词要求只读指定材料,**不是强制访问隔离,也不是全库取证**;接管检出只约束提交位置,不隔离文件读取、网络或插件(敌意环境配置出范围,触发条件见 ADR 0004)。diag任何入口都不实施;auto-review诊断不建NIGHT、不通知。
 
@@ -36,12 +36,12 @@ xcheck 是一组全局 [Claude Code](https://code.claude.com/) skill,把本机�
 然后给它任何东西:
 
 ```
-/xcheck 评审 docs/superpowers/specs/2026-09-16-foo-design.md
+/xcheck 评审 .scratch/foo-feature/spec.md
 /xcheck 帮我看看这个方案行不行:<贴方案全文>
 /xcheck 为什么这个服务一起动就崩:<完整报错栈>
-/xcheck --auto-review 评审 docs/superpowers/specs/2026-09-16-foo-design.md
+/xcheck --auto-review 评审 .scratch/foo-feature/spec.md
                    ← 无人值守审核:必要时修订并复审一次,到审核交付结束,不实施或发布
-/xcheck --night 评审 docs/superpowers/specs/2026-09-16-foo-design.md
+/xcheck --night 评审 .scratch/foo-feature/spec.md
                    ← 夜链:评审完自动固化 spec、拆票、逐票实施,每票推远端,收工不开 PR(晨报给 compare 链接),早上看晨报
 /xcheck            ← 裸敲:续跑未完成的链,或从刚才的对话里猜你要评什么
 ```
@@ -99,7 +99,7 @@ xcheck 是一组全局 [Claude Code](https://code.claude.com/) skill,把本机�
 
 活动约束(开放的阻断或重大风险待决)清空即收敛,不要求建议清零,也不代表代码/测试已通过。正常模式两轮后仍有约束时可再修、按现状交付或明确放弃;没有新修复路径时会说明无进展,不靠润色假装修好。
 
-正常审核/auto-review的讨论对象可固化为 `docs/superpowers/specs/<日期>-<主题>-consensus.md`,结论性终态的文件型对象会在文末收到评审附录;完整night的共识只留 `.xcheck/`,附录为 `.xcheck/<ts>/review-appendix.md`。附录给出活动约束及证据/缺口、暂停范围、解除条件,加已解除摘要和精选建议。**附录是有范围约束的交付,不是把全部意见转成需求。**
+正常审核/auto-review的讨论对象可固化为 `.scratch/<主题-slug>/consensus.md`(0.27 起与夜链 spec/票同家),结论性终态的文件型对象会在文末收到评审附录;完整night的共识只留 `.xcheck/`,附录为 `.xcheck/<ts>/review-appendix.md`。附录给出活动约束及证据/缺口、暂停范围、解除条件,加已解除摘要和精选建议。**附录是有范围约束的交付,不是把全部意见转成需求。**
 
 ### 夜链:--night,睡前一把梭
 

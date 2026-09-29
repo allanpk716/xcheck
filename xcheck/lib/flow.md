@@ -192,12 +192,12 @@ RESULT_SHAPE = <diag:根因/证据/置信度/建议 | review:裁决/逐条问题
    - **接管检出**:先记 branch 意图再调用 `night-git.sh start <repo> <branch> <start_oid>`;`status=blocked` → 写 waiting("操作者改动阻挡分支切换")及晨报返回,不实施。
    - **每次 start(含幂等)刷新脏区底账**:`git status --porcelain` 全量存 NIGHT 附表;`night-git.sh snapshot <repo> dirty-<root-ts>` 记 `dirty_snapshot`;**重算停靠票**(见 11.6)。
    - **票路径夜链独占声明**:夜链播报"夜链期间票路径文件由夜链独占,清单见晨报;期间请勿手改票路径文件"。
-   - 推通知后内联to-spec,不上issue tracker,无需调用外部同名skill。
+   - 推通知后内联to-spec,不上issue tracker,无需调用外部同名skill。**出处注记(ADR 0011)**:本步与下步流程改编自 Matt Pocock `to-spec`/`to-tickets`(本机 2026-09 版冻结),差异 = 确认关卡(seam/拆票quiz)自动裁定记账、spec/票只落本地并提交夜链分支不上 tracker、票格式扩展(涉及路径/副作用声明/decision_refs/review_blocks);主动更新本机 Matt 技能时手动 re-diff 同步此段。
    - 按其模板写 spec:Problem Statement / Solution(均用户视角)/ User Stories(尽量穷尽,编号列表,"作为<角色>,我想要<功能>,以便<收益>")/ Implementation Decisions(模块/接口/架构/schema/API 契约;不写具体文件路径与代码;原型产出的状态机/schema/类型形状等"决策密集"片段可内联并注明来自原型)/ Testing Decisions(只测外部行为不测实现细节;测哪些模块;仓库既有同类测试先例)/ Out of Scope / Further Notes;术语遵守项目 CONTEXT.md 词汇表与相关 ADR;
    - 输入 = object + decisions.md + FINDINGS.md + 本链必要背景。只把已确认需求/约束、必要修复和验收预期写进规格;一般建议未获明确采纳不新增User Story/任务。活动约束列出受影响行为和解除条件。若整个目标都受约束:写waiting与晨报暂停原因,plan/impl/finish均保持未勾,不拆可执行票、不建实施分支、不推送。
    - 新技术细化不得变相覆盖D中的已确认产品行为/约束;冲突产生待决记录,暂停受影响路径。
    - seam 裁定**自动过**:优先既有最高 seam,确需新 seam 从最高点提案,裁定记 NIGHT(不问用户);
-   - 落盘 `<repo>/docs/superpowers/specs/<YYYYMMDD>-<主题>-spec.md`,`git commit --only <spec路径> -m ...`(带 `--no-verify`);**不提交原分支**(.xcheck 账本不入库)。
+   - 落盘 `<repo>/.scratch/<feature-slug>/spec.md`(0.27 起与票同目录,slug 从 object 主题推导),`git commit --only <spec路径> -m ...`(带 `--no-verify`);`.scratch` 被 gitignore 时与票同规则最小放行;**不提交原分支**(.xcheck 账本不入库)。
    完成:NIGHT 头部 `spec` 字段填路径。
 5. **拆票(内联 to-tickets 流程)**:仍属 `plan` 阶段 → 主会话**就地**执行 to-tickets 的流程(同样内联;夜链走其本地文件模式):
    - **竖切规则**:每票一条端到端窄竖切(穿过 schema/API/UI/测试各层),完成即可独立验收;粒度≈单个新鲜上下文窗口;预重构(prefactor)排在最前;**宽改动例外**:单一机械改动波及全库的(改列名/改共享符号类型),按 expand(新旧并存)→ 分批 migrate(每批一票,批间保持绿)→ contract(删旧形)排序,不硬切竖片;
@@ -290,7 +290,7 @@ remote_url = <显式推送URL或->   # 已脱敏(含userinfo的URL剥凭据后�
 pr_base = <base分支或->
 web_base = <web URL或->         # compare链接基准;内部Gitea端口不同时配置
 dirty_snapshot = <OID或none>    # 每次start刷新
-spec = docs/superpowers/specs/<日期>-<主题>-spec.md   # 未到填 -
+spec = .scratch/<slug>/spec.md   # 未到填 -
 tickets = .scratch/<slug>/issues/   # 未到填 -
 impl = <分支名>                 # 实施所在夜链分支
 lanes = 3(--lanes|默认)         # 并发帽生效值(实施+票级评审合计);impl 开始记;续跑改道追记(原值→新值)

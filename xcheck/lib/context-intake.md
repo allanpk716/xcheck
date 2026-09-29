@@ -10,7 +10,7 @@
 
 1. **显式对象**:用户明确指定方案文件/贴文 → 使用该对象,MODE = review;明确说“刚才讨论的方案”等 → MODE = review,使用对应讨论,不能被本会话新写的 ADR/CONTEXT 或最近文件截走。明确指定的是诊断材料则保留diag。指向哪个文件/哪段讨论仍不明确,记为对象歧义。
 2. **当前讨论**:没有显式对象,但可见最近对话正在讨论方案 → MODE = review,把已确认目标、决策与必要背景整理成自包含 proposal。助手未获确认的提案只能作为未决/假设,不能写成既定产品行为。
-3. **相关文件**:当前没有可确定的讨论对象,才考虑本会话 Write/Edit 过且与用户意图相关的方案文件,对象明确后MODE = review。跨会话可查 `docs/superpowers/specs/`、`docs/superpowers/plans/`、`docs/` 近24小时文件,但 mtime 仅供发现候选,不是其相关性或用户授权的证据。无关文件不能兜底为对象;CONTEXT/ADR默认只是背景,除非用户明确指定审核它。
+3. **相关文件**:当前没有可确定的讨论对象,才考虑本会话 Write/Edit 过且与用户意图相关的方案文件,对象明确后MODE = review。跨会话可查 `.scratch/*/`(spec/共识稿/票;Matt 管线与 xcheck 产物同家,0.27)、`docs/` 近24小时文件(历史 `docs/superpowers/` 只读不再新增),但 mtime 仅供发现候选,不是其相关性或用户授权的证据。无关文件不能兜底为对象;CONTEXT/ADR默认只是背景,除非用户明确指定审核它。
 4. **诊断型**:最近对话在追已发生的报错/坏现象 → MODE = diag,走 0.1/0.2 摘录事实清单。壳已明确 MODE 时尊重该模式,不因找到文件而擅改。
 5. **无法确定对象** → 第 0.4 步,不硬编。
 
@@ -43,7 +43,7 @@
 按执行终点选择落盘位置,不能仅按无人值守判断:
 
 - **完整night(`INTERACTION=unattended / TARGET=implementation`)**:审核阶段共识稿、快照、修订稿与评审附录**只写 `.xcheck/<ts>/`**。讨论/贴文直接写自包含 `proposal.md`,不另在原工作区 `docs/` 创建consensus;文件输入仍用 `cp` 固定为proposal,不改变用户指定的审核对象。所有此类输入一律 `source = inline`,另记 `original_source = <原文件绝对路径或->`;讨论确有对应原文件才记其路径,没有则写`-`。original_source**只作来源追溯**,不作为复审读取基线、附录写入或发布目标;第3步不得把它或 `$ARGUMENTS` 重新赋给source。原稿正文与文末均不写,终态附录留本轮 `.xcheck/`。
-- **正常review与--auto-review(`TARGET=review`)**:保持原行为。讨论型另将固化稿落 `docs/superpowers/specs/<YYYYMMDD>-<主题>-consensus.md`,再固定为proposal;这是自动整理,不是额外确认关卡。路径已有不同内容时不覆盖,选未占用后缀。文件型source为指定文件绝对路径;讨论型source为共识稿绝对路径;贴文source=inline。修订与文件型终态附录仍按flow原规则处理。
+- **正常review与--auto-review(`TARGET=review`)**:保持原行为。讨论型另将固化稿落 `.scratch/<主题-slug>/consensus.md`(0.27 起与 spec/票同家;旧链记录的绝对路径 source 不受影响,恢复按账本字段不扫描),再固定为proposal;这是自动整理,不是额外确认关卡。路径已有不同内容时不覆盖,选未占用后缀。文件型source为指定文件绝对路径;讨论型source为共识稿绝对路径;贴文source=inline。修订与文件型终态附录仍按flow原规则处理。
 
 写PROGRESS头部 `mode=review / review_schema=2 / interaction / target / material / source / round=0 / prev=-`,然后勾 `intake`。第3步复用已落内容,不得重新复制变化后的源文件覆盖本轮快照。复审已有D记录由flow继承,不得在这里重新编号或重新探测后覆盖。
 
