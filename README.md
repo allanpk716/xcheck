@@ -113,7 +113,7 @@ xcheck 是一组全局 [Claude Code](https://code.claude.com/) skill,把本机�
 - 下游仍内联执行 `to-spec` → `to-tickets` → 并行实施(就绪集调度、泳道编辑+主会话按票提交),但只把已确认共识、必要修复和验收目标写进规格。**精选一般建议未经明确采纳不扩成故事/票**。问题映射到票及真实依赖:直接约束票 `paused`,依赖未完成票 `blocked`,确定独立的票才推进;未知依赖不假定独立。
 - 完成票记 `complete`(提交和验证证据)后尝试推远端。暂停/受阻不算完成,修复上限耗尽、无下游依赖或先停靠也不能把真实阻断变完成;有残留约束或未完成票不报全绿。
 - **交付边界(0.22)**:夜链接管当前检出起分支干活(`night-git.sh start`);NIGHT冻结start_oid/branch/remote_url(脱敏)/pr_base/web_base;每次start刷新脏区底账+内容快照,与操作者未提交改动路径重叠的票停靠。spec/票/必要.gitignore与代码全部在夜链分支提交(`git commit --only --no-verify`),不在原分支commit/push/pull/rebase。每票提交后即推夜链分支(显式URL、不force、不交互、不跑hook);**收工不自动开PR**,晨报给脱敏compare一键链接。`material=external`时实施失败关闭;无remote可本地执行;无Git/HEAD则只审核。
-- 早上先看晨报 `.xcheck/<ts>/MORNING.md`:评了什么/改了什么/执行了什么/要决定什么,列已完成、暂停及受依赖阻塞范围和解除条件。对话收尾是“夜链结论 → 简报 → 推荐下一步”。配置了Pushover则尝试三节点通知。PR显式指定冻结仓库/base/head,查询同目标开放PR复用;正文自包含规格、测试证据与未完成范围,不只放本机晨报路径。base不在远端则不建PR,不为此推base。**实施结果与push/PR结果分别记账,全绿不代表已发布**,合并仍由你决定。
+- 早上先看晨报 `.xcheck/<ts>/MORNING.md`:目标验收单(0.28.0)——功能一句、结果(开发完成/未完成 x/y)、逐条"你的目标实现了没有"、是否达到验收标准(自动验证 + 需要你测试评估的)、下一步需要你执行的操作(开 PR / 合并打 tag 发布 / 先人工测 / 续跑)。对话收尾是它的浓缩投影。配置了Pushover则尝试三节点通知(title 仍用夜链结论四值)。**不自动开PR**(ADR 0006):"下一步"给脱敏 compare 一键链接,开 PR 是早晨一次点击。**实施结果与push结果分别记账,全绿不代表已发布**,合并仍由你决定。
 - 夜里中断:兼容的新链可 `/xcheck --night` 从票账本重算就绪集续跑;`complete` 需完整OID可达、scoped验证及评审证据;账本无complete提交但路径有残留的票先按失败票路径还原(reset→checkout→clean -fd)再调度。`paused/blocked` 或全局待决写入 `NIGHT.md waiting`,impl/finish保持未勾,晨报先交付暂停原因。续跑先核新证据/决策并更新问题记录再重算,没有新证据就返回暂停摘要,不重复实施、发布或通知。全局受约束时不拆可执行票、不建实施分支、不推送。**旧协议链(无review_schema或0.21字段集)一律拒绝续跑,提示新开**。
 - **前提**:夜间会话要用免弹窗权限模式跑(bypassPermissions 或预放行常用命令),否则子代理一条权限弹窗能挂整夜。
 
@@ -177,7 +177,7 @@ xcheck 是一组全局 [Claude Code](https://code.claude.com/) skill,把本机�
 │   ├── review-appendix.md          #   完整night评审附录,不追加被评原文件
 │   ├── NIGHT.md                   #   (夜链)0.22字段集(基线/分支/远端/compare基准)、四阶段、票台账、push结果
 │   ├── night-intake.md            #   (夜链)第 0 步解析留档(夜里不弹窗的过目替代)
-│   ├── MORNING.md                 #   (夜链)晨报:四问总交付 + 文末裁定与停靠附录(收尾才有)
+│   ├── MORNING.md                 #   (夜链)晨报:目标验收单 + 文末裁定与停靠附录(收尾才有)
 │   └── SUMMARY.md                 #   review:裁定投影+三类索引;diag:诊断长文+旧三分类
 ├── smoke.txt / smoke-prompt.txt   # 冒烟固定文件
 └── <agent>.failed.md              # 冒烟淘汰记录
